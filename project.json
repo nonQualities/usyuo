@@ -1,0 +1,16 @@
+{
+  "langrev": "1",
+  "name": "c3todo",
+  "version": "0.1.0",
+  "authors": [ "User" ],
+  "sources": [ "src/**" ],
+  "build-dir": "build",
+  "output": "build",
+  "targets": {
+    "c3todo": {
+      "type": "executable"
+    }
+  },
+  "cpu": "generic",
+  "opt": "O2"
+}

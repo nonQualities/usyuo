@@ -1,0 +1,10 @@
+(A) 2026-09-13 Implement zero-copy arena buffer +c3engine @backend due:2026-09-13
+(B) 2026-09-12 Build Julian Day Number arithmetic parser +calendar @algorithms due:2026-09-14
+(C) 2026-09-10 Design inverted tag index for fast queries +indexing @backend
+(A) Setup ANSI escape sequences and TTY formatter +ui @frontend due:2026-09-15
+2026-09-11 Refactor REPL command tokenizer +repl @core
+x 2026-09-13 2026-09-09 Review todo.txt specification grammar +docs @planning
+x 2026-09-12 2026-09-08 Verify C3 compiler installation and stdlib paths +setup @infra
+(B) Write comprehensive documentation in docs directory +docs @writing due:2026-09-13
+Plan workspace isolation protocol adhering to XDG specification +storage @backend
+(D) 2026-09-01 Profile memory consumption under 100k tasks +perf @bench due:2026-09-20
