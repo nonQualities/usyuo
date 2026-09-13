@@ -1,207 +1,286 @@
-# usyuo: Zero-Copy todo.txt Task Engine in C3
+# usyuo
 
-`usyuo` is a terminal-based, zero-copy `todo.txt` task engine implemented in C3. The system executes query and mutation operations on structured text datasets without heap fragmentation, utilizing a contiguous memory arena, an integer-space temporal mapping engine, and arena-backed inverted indices.
-
----
-
-## 1. Etymology & Design Philosophy
-
-The name **usyuo** derives from the classical Japanese term **usuyō** (**薄様** / うすよう), historically referring to ultra-thin, high-density gampi paper (*gampishi*). 
-
-### Historical Context
-Developed during classical Japan and widely used through the Heian period for administrative records and pocket memoranda, *usuyō* was engineered by beating wild mountain fibers to achieve minimum physical thickness and weight while retaining high tensile durability and crisp ink absorption without bleeding. Officials and scholars carried folded sheets of *usuyō* for personal ledgers, sequential task tracking, and daily dispatches because the medium imposed near-zero physical burden. The name also shares phonetic and conceptual resonance with Latin **ūsus** (*use, practice, practical application*).
-
-### Architectural Appropriation
-In `usyuo`, this philosophy governs the software architecture:
-* **Minimal Memory Mass (Zero-Copy Arena)**: Traditional software wraps plain-text data in layers of heap allocation headers, dynamic string objects, and pointer tables. `usyuo` strips away this structural bulk: the entire file is mapped into a single contiguous arena, and tasks are sliced directly from memory without secondary string allocations.
-* **Durability of the Plain-Text Medium**: Like traditional gampi parchment that endures for centuries without decomposing, `todo.txt` is an open, unadorned, human-readable standard designed for longevity over proprietary database formats.
-* **Deterministic Execution**: In accordance with the Latin root *ūsus*, the engine prioritizes functional utility: constant-time bounds checks on integer calendar days, deterministic single-pass parsing, and bounded $O(1)$ memory consumption across continuous execution loops.
+High-performance, zero-copy `todo.txt` task engine implemented in C3.
 
 ---
 
-## 2. System Architecture & Memory Model
+## Overview
 
-The architecture enforces a strict bipartite boundary between the backend memory model (`backend::*`) and the presentation layer (`presentation::*`).
+`usyuo` is a command-line interface (CLI) task management engine adhering to the `todo.txt` standard. The system executes query and mutation operations on structured text datasets without runtime heap fragmentation. It operates via a contiguous memory arena, integer-space calendar arithmetic, and arena-backed inverted indices, enforcing a strict bipartite boundary between its backend memory model and presentation layer.
+
+---
+
+## 1. Etymology and Design Principles
+
+The name **usyuo** is derived from classical Japanese philology and classical Latin terminology.
+
+### Historical Context: *Usuyō* (薄様 / うすよう)
+In classical Japan, beginning in the Heian period, *usuyō* designated an ultra-thin, high-density parchment produced from wild mountain gampi fibers (*gampishi*). Due to extensive beating of the bast fibers, the resulting paper possessed minimal physical thickness and weight while exhibiting high tensile strength, resistance to tearing, and sharp ink absorption without feathering. It was utilized by administrators, scholars, and officials for pocket memoranda, sequential ledgers, and official dispatches.
+
+*(A brief reflection: a millennium of technological development, and humanity went from carrying pocket-sized gampi leaves to requiring two gigabytes of browser engine to display a checkbox. Progress is rarely linear.)*
+
+### Linguistic Resonance: *Ūsus*
+The designation simultaneously aligns with classical Latin *ūsus* (practice, application, utility), emphasizing functional execution over structural abstraction.
+
+### Architectural Mapping
+The physical and linguistic attributes correspond directly to the technical architecture of `usyuo`:
+
+* **Minimal Memory Overhead**: Eliminates dynamic heap allocation wrappers, individual string objects, and fragmented pointer graphs. The entire dataset resides in a single contiguous memory arena; tasks and metadata are represented as direct slices.
+* **Plain-Text Persistence**: Employs the `todo.txt` format as an unadorned, durable storage standard, independent of proprietary database formats or volatile schemas.
+* **Deterministic Execution**: Bounded $O(1)$ and $O(K)$ query operations executed over integer calendar values, maintaining bounded steady-state memory overhead throughout execution.
+
+---
+
+## 2. Memory Model and Data Representation
+
+The engine eliminates localized heap allocations by ingesting datasets into a contiguous memory block and slicing tokens using pointer-and-length references.
+
+### Contiguous Virtual Memory Arena
+1. The active workspace file is loaded into a single contiguous byte buffer managed by `MemoryArena`.
+2. Memory allocations within the arena occur via an 8-byte aligned bump allocator. The allocation offset moves strictly forward; like software deadlines, the arena does not look back.
+3. Strings are represented using C3's native `String` type (`{ char* ptr, usz len }`), referencing sub-slices of the arena buffer directly. In the most literal technical sense, there are no strings attached—merely an 8-byte pointer with commitment issues and an 8-byte length.
 
 ```
-+-------------------------------------------------------------------------+
-|                                  usyuo                                  |
-|                                                                         |
-|  +---------------------------+       +-------------------------------+  |
-|  |     Presentation Layer    |       |      Backend Memory Model     |  |
-|  |                           |       |                               |  |
-|  |   presentation::tty       |       |   backend::ast                |  |
-|  |   presentation::repl      |       |   backend::arena              |  |
-|  |                           |       |   backend::parser             |  |
-|  |                           |       |   backend::index              |  |
-|  |                           |       |   backend::storage            |  |
-|  +-------------+-------------+       +---------------+---------------+  |
-|                ^                                     ^                  |
-|                |                                     |                  |
-|                +------------------+------------------+                  |
-|                                   |                                     |
-|                       +-----------+-----------+                         |
-|                       |      module usyuo     |                         |
-|                       |   (CLI Entry Point)   |                         |
-|                       +-----------------------+                         |
-+-------------------------------------------------------------------------+
+Contiguous Virtual Memory Arena
++-------------------------------------------------------------------------------+
+| Line 0: (A) 2026-09-14 Review architecture docs +Core @Meeting due:2026-09-15\n|
+| Line 1: (B) Implement parser regression test +Engine due:2026-09-16\n          |
+| Line 2: x 2026-09-13 Fix terminal escape sequence +UI\n                       |
+| [ Unallocated Capacity / Dynamic Mutation Appends ...........................]|
++-------------------------------------------------------------------------------+
+  ^                      ^
+  |-- raw_line slice ----| (char* ptr, usz len)
 ```
 
-### Zero-Copy Memory Arena
-* **Contiguous Virtual Memory**: The active workspace file is ingested in a single read into a contiguous byte buffer managed by `MemoryArena`.
-* **Pointer-and-Length Slices**: Task descriptions, project identifiers (`+Project`), context identifiers (`@Context`), and key-value tags (`key:value`) are represented as C3 `String` slices (`char[]`), referencing the contiguous arena buffer directly without secondary heap string allocations.
-* **Streamlined Task Representation**: The `Task` record is fixed at 48 bytes:
-  ```c3
-  struct Task
-  {
-      int id;                 // 1-based operational index
-      bool completed;         // Boolean completion state ('x ')
-      char priority;          // Uppercase priority ASCII ('A'..'Z' or 0)
-      int completion_jdn;     // Julian Day Number of completion, or 0
-      int creation_jdn;       // Julian Day Number of creation, or 0
-      int due_jdn;            // Julian Day Number from due:YYYY-MM-DD, or 0
-      String raw_line;        // Full line slice in the arena buffer
-      String description;     // Body text slice in the arena buffer
-  }
-  ```
-* **Contiguous Array Storage**: Tasks are stored sequentially in a dynamic array (`List{Task}`). Lookups by task ID evaluate via direct array indexing `tasks[(sz)(id - 1)]` in $O(1)$ time.
+### Task Struct Layout
+The core abstract syntax tree (AST) node is defined as a fixed 48-byte record in `backend::ast`:
+
+```c3
+struct Task
+{
+    int id;                 // 1-based operational index
+    bool completed;         // true if prefixed with 'x '
+    char priority;          // 'A'..'Z' or 0 if unprioritized
+    int completion_jdn;     // Julian Day Number of completion, or 0
+    int creation_jdn;       // Julian Day Number of creation, or 0
+    int due_jdn;            // Julian Day Number from due:YYYY-MM-DD, or 0
+    String raw_line;        // Full original line slice in arena
+    String description;     // Task body text slice (excluding tags/dates)
+}
+```
+
+#### Memory Alignment Specification (64-bit Architecture):
+| Offset (Bytes) | Field | Type | Size (Bytes) | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `0x00` | `id` | `int` | 4 | 1-based operational index |
+| `0x04` | `completed` | `bool` | 1 | Completion status marker |
+| `0x05` | `priority` | `char` | 1 | Priority ASCII character |
+| `0x06` | *(padding)* | — | 2 | Alignment padding |
+| `0x08` | `completion_jdn`| `int` | 4 | Integer completion date |
+| `0x0C` | `creation_jdn`  | `int` | 4 | Integer creation date |
+| `0x10` | `due_jdn`       | `int` | 4 | Integer due date |
+| `0x14` | *(padding)* | — | 4 | Alignment padding |
+| `0x18` | `raw_line`      | `String` | 16 | Slice referencing arena line (`ptr` + `len`) |
+| `0x28` | `description`   | `String` | 16 | Slice referencing task text (`ptr` + `len`) |
+| **Total** | | | **48** | |
 
 ---
 
-## 3. Temporal Mapping Engine (Julian Day Number)
+## 3. Temporal Engine and Calendar Arithmetic
 
-To satisfy constant-time temporal query bounds, all ISO 8601 calendar dates (`YYYY-MM-DD`) are mapped to integer Julian Day Numbers (JDN) during the lexical scan. String-based date processing is forbidden at query time.
+To guarantee constant-time temporal query evaluation, ISO 8601 calendar strings (`YYYY-MM-DD`) are mapped to integer Julian Day Numbers (JDN) during initial lexical analysis. String processing at query time is strictly prohibited.
 
-### Gregorian to JDN Conversion (Fliegel-Van Flandern Algorithm)
-Given astronomical integer year $Y$, month $M \in [1, 12]$, and day $D \in [1, 31]$:
+*(Dating is notoriously difficult, but string-based calendar comparisons inside an interactive query loop are pure self-inflicted heartbreak. Integers don't lie, and they don't allocate.)*
+
+### Gregorian Calendar to Julian Day Number (Fliegel-van Flandern)
+For a given Gregorian calendar date with Year $Y$, Month $M \in [1, 12]$, and Day $D \in [1, 31]$:
 
 $$a = \left\lfloor \frac{14 - M}{12} \right\rfloor$$
+
 $$y = Y + 4800 - a$$
+
 $$m = M + 12a - 3$$
-$$JDN = D + \left\lfloor \frac{153m + 2}{5} \right\rfloor + 365y + \left\lfloor \frac{y}{4} \right\rfloor - \left\lfloor \frac{y}{100} \right\rfloor + \left\lfloor \frac{y}{400} \right\rfloor - 32045$$
 
-* The term $\lfloor(153m + 2)/5\rfloor$ accounts for the repeating five-month cycle of month lengths (31, 30, 31, 30, 31 days).
-* Shifting January and February to months 10 and 11 of the preceding year places the leap day at the end of the calculation, ensuring strict mathematical monotonicity:
-  $$JDN(date + 1) - JDN(date) \equiv 1$$
+$$\text{JDN} = D + \left\lfloor \frac{153m + 2}{5} \right\rfloor + 365y + \left\lfloor \frac{y}{4} \right\rfloor - \left\lfloor \frac{y}{100} \right\rfloor + \left\lfloor \frac{y}{400} \right\rfloor - 32045$$
 
-### JDN to Gregorian Inversion (Richards-Hatcher Algorithm)
-For date serialization and timestamp generation:
-$$l = JDN + 68569, \quad n = \left\lfloor \frac{4l}{146097} \right\rfloor, \quad l = l - \left\lfloor \frac{146097n + 3}{4} \right\rfloor$$
-$$i = \left\lfloor \frac{4000(l + 1)}{1461001} \right\rfloor, \quad l = l - \left\lfloor \frac{1461i}{4} \right\rfloor + 31, \quad j = \left\lfloor \frac{80l}{2447} \right\rfloor$$
-$$Day = l - \left\lfloor \frac{2447j}{80} \right\rfloor, \quad l = \left\lfloor \frac{j}{11} \right\rfloor, \quad Month = j + 2 - 12l, \quad Year = 100(n - 49) + i + l$$
+This mapping is strictly monotonic: $\text{JDN}(d + 1) - \text{JDN}(d) = 1$ across all calendar dates.
 
-### Query Bounds Complexity:
-* **Today Query**: Evaluates as an integer equality check `task.effective_jdn == system_jdn`.
-* **Range Query**: Evaluates as an arithmetic bounds check $JDN_{start} \le \text{task.effective\_jdn} \le JDN_{end}$.
+### Julian Day Number to Gregorian Calendar (Richards-Hatcher)
+The inverse transformation converts an integer JDN back to $(Y, M, D)$ coordinates in $O(1)$ without table lookups:
 
----
+$$l = \text{JDN} + 68569$$
 
-## 4. Inverted & Temporal Indexing Engine
+$$n = \left\lfloor \frac{4l}{146097} \right\rfloor$$
 
-To prevent $O(M)$ linear scans over large datasets with $M$ tasks, the system builds two in-memory indices populated during parsing.
+$$l = l - \left\lfloor \frac{146097n + 3}{4} \right\rfloor$$
 
-```
-[Inverted Index: HashMap{String, PostingNode*}]
-Key (String slice)   -> Head Pointer (PostingNode*)
-------------------------------------------------------------------
-"@backend"           -> [ Node: task_id=9 ] -> [ Node: task_id=3 ] -> [ Node: task_id=1 ] -> null
-"+c3engine"          -> [ Node: task_id=1 ] -> null
+$$i = \left\lfloor \frac{4000(l + 1)}{1461001} \right\rfloor$$
 
-[Temporal Index: HashMap{int, PostingNode*}]
-Key (int JDN)        -> Head Pointer (PostingNode*)
-------------------------------------------------------------------
-2461298 (2026-09-14) -> [ Node: task_id=2 ] -> null
-```
+$$l = l - \left\lfloor \frac{1461i}{4} \right\rfloor + 31$$
 
-* **Arena-Backed Posting Lists**: Each posting record is a 16-byte node (`PostingNode { int task_id; PostingNode* next; }`) bump-allocated in the workspace memory arena.
-* **Complexity Guarantees**:
-  * Tag Insertion: Prepending to the posting list executes in $O(1)$ time with zero heap reallocations.
-  * Tag Query: Hash table bucket resolution executes in $O(1)$ average time; traversing the posting list streams exactly the $K$ matching task records in $O(K)$ time ($K \ll M$).
+$$j = \left\lfloor \frac{80l}{2447} \right\rfloor$$
+
+$$D = l - \left\lfloor \frac{2447j}{80} \right\rfloor$$
+
+$$l = \left\lfloor \frac{j}{11} \right\rfloor$$
+
+$$M = j + 2 - 12l$$
+
+$$Y = 100(n - 49) + i + l$$
+
+### Temporal Query Semantics
+* **Effective Date Resolution**: Evaluates `due_jdn` if present; falls back to `creation_jdn`.
+* **Date Equality**: Evaluated as `effective_jdn == query_jdn` in $O(1)$ integer operations.
+* **Interval Bounds**: Evaluated as `start_jdn <= effective_jdn && effective_jdn <= end_jdn` in $O(1)$ integer operations.
 
 ---
 
-## 5. Storage & Persistence Protocol
+## 4. Indexing Engine and Query Complexity
+
+The engine populates two in-memory indices during file ingestion to bypass linear scanning on query operations.
+
+For twenty tasks, a linear scan ($O(N)$) is unnoticeable. For twenty thousand uncompleted tasks, the user does not need a faster scanner—they need to reconsider their commitments. Regardless, the inverted index ensures the CPU does not suffer alongside them.
+
+```
+Inverted Index (Tag -> Posting List)
+Key: String (Arena Slice)  -> Head Pointer: PostingNode*
+  "@Meeting"               -> [Task 1] -> [Task 4] -> null
+  "+Core"                  -> [Task 1] -> [Task 2] -> null
+
+Temporal Index (JDN -> Posting List)
+Key: int (JDN)             -> Head Pointer: PostingNode*
+  2461298                  -> [Task 1] -> [Task 3] -> null
+```
+
+### Data Structures
+Index nodes are allocated directly within the contiguous `MemoryArena`:
+
+```c3
+struct PostingNode
+{
+    int task_id;
+    PostingNode* next;
+}
+```
+
+* `InvertedIndex`: Hash map mapping tag slices (`String`) to `PostingNode*`.
+* `TemporalIndex`: Hash map mapping integer `int` (JDN) to `PostingNode*`.
+
+### Algorithmic Complexities
+| Operation | Target | Algorithm | Time Complexity | Auxiliary Space |
+| :--- | :--- | :--- | :--- | :--- |
+| File Ingestion | Workspace | Single-pass lexical scan | $O(N)$ | $O(N)$ contiguous arena |
+| Index Construction | Tag / JDN | Prepend to linked list | $O(1)$ per token | $O(1)$ per posting node |
+| Tag Query | `@ctx` / `+proj` | Hash lookup + list traversal | $O(1 + K)$ | $O(1)$ |
+| Temporal Query | `today` / Date | Hash lookup + list traversal | $O(1 + K)$ | $O(1)$ |
+| Task Completion | `done <id>` | In-place record mutation | $O(1)$ | $O(1)$ |
+| Workspace Persistence| Disk | Single-pass serialization | $O(N)$ | $O(1)$ |
+
+*(Where $N$ is the total number of tasks, and $K$ is the number of matching tasks returned).*
+
+---
+
+## 5. Storage Architecture and Persistence Protocol
 
 ### XDG Base Directory Compliance
-* Primary storage directory: `$XDG_DATA_HOME/usyuo/` (defaulting to `$HOME/.local/share/usyuo/`).
-* Fallback: If parent directories are read-only (such as containerized sandbox environments), storage automatically falls back to `./usyuo_data`.
+`usyuo` complies with the XDG Base Directory Specification:
+* **Canonical Storage Path**: `$XDG_DATA_HOME/usyuo/todo.txt` (defaulting to `$HOME/.local/share/usyuo/todo.txt`).
+* **Environment Fallback**: If the user home directory or XDG path is mounted read-only, the engine transparently falls back to `./usyuo_data/todo.txt`.
 
-### Workspace Ingestion & Isolation (FR-1)
-When initialized with an external file argument:
+### External Workspace Isolation (FR-1)
+When invoked with an external file argument outside the canonical directory:
 ```bash
-./usyuo /path/to/external_tasks.txt
+usyuo /path/to/external_tasks.txt
 ```
-The file is copied into `$XDG_DATA_HOME/usyuo/external_tasks.txt` prior to parsing, isolating the active workspace from foreign directory mutations.
+The file is copied into `$XDG_DATA_HOME/usyuo/external_tasks.txt` prior to loading. The engine mounts the local copy, preventing uncoordinated in-place modifications to external storage.
 
-### Deferred Serialization Protocol (FR-5)
-* **Dirty Flag**: Any mutation (`add`, `done`) sets an in-memory boolean flag `workspace.dirty = true`.
-* **Sequential Stream Flush**: Upon graceful termination (`exit`, `quit`) or receipt of `SIGINT` (Ctrl+C), if `dirty == true`, the active workspace file is opened with `O_TRUNC` and all task line records are written sequentially in a single continuous stream.
+### Deferred Persistence Protocol
+1. Ingestion loads and indexes the file in memory. Disk handles are closed immediately after reading.
+2. Mutation commands (`add`, `done`) modify the in-memory AST and set a workspace `dirty` flag.
+3. Disk writes occur only upon:
+   * Explicit execution of the `save` command.
+   * Orderly termination via `exit` or `quit`.
+   * Interception of POSIX `SIGINT` (`Ctrl+C`), handled by `handle_sigint` to flush pending changes via `O_TRUNC` before process termination.
+
+The persistence layer operates on a principle of disciplined laziness: we refuse to thrash the disk on every keystroke, but we guard against abrupt termination. When the user hits `Ctrl+C` in an existential panic, `handle_sigint` catches the signal and commits the state before the kernel pulls the plug.
 
 ---
 
-## 6. Terminal Presentation & Interactive REPL
+## 6. Terminal Presentation and Execution Loop
 
-* **Terminal Capability Detection**: Standard output is probed using POSIX `libc::isatty(1)`. When attached to a terminal, ANSI color sequences are enabled; when piped or redirected, plain text is emitted.
-* **Single-Pass Streaming Colorizer**: The ANSI formatting engine scans the raw description slice in a single pass directly to the output stream, colorizing `@Context` in cyan, `+Project` in magenta, `due:YYYY-MM-DD` in bold yellow, priorities in bold red/yellow/cyan, and completed tasks in dim strikethrough.
-* **Bounded REPL Memory**: Each iteration of the REPL loop is scoped with C3 `@pool()` blocks, ensuring transient memory from line tokenization is reclaimed each turn, maintaining $O(1)$ steady-state memory across indefinite uptime.
+### Terminal Capability Detection
+The engine queries file descriptor 1 via POSIX `libc::isatty(1)`:
+* **TTY Mode**: Formats task components with ANSI escape codes.
+* **Non-TTY Mode (Piped/Redirected)**: Emits raw ASCII text without escape characters.
 
----
+### Streaming Token Colorization
+The presentation layer implements a single-pass streaming colorizer (`presentation::tty`). The raw line slice is scanned and emitted directly to the standard output stream without intermediate string formatting allocations:
+* **Priority `(A)`**: Bold Red (`\e[1;31m`)
+* **Priority `(B)`**: Bold Yellow (`\e[1;33m`)
+* **Priority `(C)`**: Bold Cyan (`\e[1;36m`)
+* **Projects (`+Project`)**: Magenta (`\e[35m`)
+* **Contexts (`@Context`)**: Cyan (`\e[36m`)
+* **Due Dates (`due:YYYY-MM-DD`)**: Bold Yellow (`\e[1;33m`)
+* **Completed Tasks**: Dim Strikethrough (`\e[2;9m`)
 
-## 7. Directory Structure
-
-```
-todo_cli/
-├── c3lib/                # Local C3 standard library modules
-├── docs/                 # Detailed architectural specifications
-│   ├── 00_architecture_overview.md
-│   ├── 01_memory_model_and_zerocopy.md
-│   ├── 02_todo_txt_grammar_and_parser.md
-│   ├── 03_temporal_engine_and_jdn.md
-│   ├── 04_indexing_and_query_complexity.md
-│   ├── 05_storage_and_xdg_protocol.md
-│   ├── 06_presentation_layer_and_repl.md
-│   └── 07_step_by_step_build_guide.md
-├── resources/            # Reference datasets
-│   └── sample_todo.txt
-├── src/                  # Multi-file source tree
-│   ├── backend/
-│   │   ├── arena.c3      # Contiguous memory arena & slice allocation
-│   │   ├── ast.c3        # Task struct & Julian Day Number conversion
-│   │   ├── index.c3      # Inverted & temporal indices with posting nodes
-│   │   ├── parser.c3     # Linear single-pass todo.txt parser
-│   │   └── storage.c3    # XDG directory management & deferred persistence
-│   ├── presentation/
-│   │   ├── repl.c3       # Interactive command tokenizer & dispatch loop
-│   │   └── tty.c3        # Terminal detection & streaming ANSI formatter
-│   └── main.c3           # Application entry point & SIGINT registration
-├── Makefile              # Build automation targets
-├── project.json          # C3 project configuration
-└── README.md             # Technical documentation
-```
+### REPL Memory Boundary
+The interactive loop in `src/main.c3` executes inside a C3 `@pool()` block. Transient memory allocated for user command input parsing is reclaimed after each iteration, maintaining bounded memory consumption across long-running sessions.
 
 ---
 
-## 8. Compilation & Build
+## 7. Modular System Architecture
 
-### Prerequisites
+The codebase enforces a bipartite boundary between the backend memory model and the presentation layer:
+
+```
+src/
+├── backend/
+│   ├── ast.c3            # Task struct (48 bytes) and JDN arithmetic
+│   ├── arena.c3          # MemoryArena bump allocator and slice management
+│   ├── parser.c3         # Single-pass lexical scanner and ISO 8601 parser
+│   ├── index.c3          # InvertedIndex and TemporalIndex (PostingNode)
+│   └── storage.c3        # XDG directory resolution and serialization
+├── presentation/
+│   ├── tty.c3            # Terminal detection (isatty) and streaming ANSI colorizer
+│   └── repl.c3           # REPL state, command tokenizer, and dispatcher
+└── main.c3               # Application entry point, CLI args, and SIGINT handler
+```
+
+### Module Responsibilities:
+
+| Module | Source File | Description |
+| :--- | :--- | :--- |
+| `backend::ast` | `src/backend/ast.c3` | Abstract syntax definitions and calendar arithmetic algorithms. |
+| `backend::arena` | `src/backend/arena.c3` | Memory arena management, bump allocation, and string buffer growth. |
+| `backend::parser` | `src/backend/parser.c3` | Lexical analysis of `todo.txt` syntax into zero-copy slices. |
+| `backend::index` | `src/backend/index.c3` | Inverted tag and temporal posting list construction and query. |
+| `backend::storage` | `src/backend/storage.c3` | File ingestion, XDG path resolution, and atomic serialization. |
+| `presentation::tty` | `src/presentation/tty.c3` | Terminal capability detection and streaming ANSI formatting. |
+| `presentation::repl` | `src/presentation/repl.c3` | Interactive command dispatching and output coordination. |
+| `usyuo` | `src/main.c3` | Top-level initialization, signal setup, and main execution loop. |
+
+---
+
+## 8. Compilation and Installation
+
+### Requirements
 * C3 Compiler (`c3c`) version 0.8.x
-* POSIX-compliant host operating system (Linux / Unix)
+* GNU Make or compatible build utility
+* POSIX-compliant C standard library (`libc`)
 
 ### Build Targets
+
 ```bash
-# Compile the usyuo binary
+# Compile optimized binary
 make build
 
-# Execute interactive REPL with default XDG workspace
-make run
-
-# Execute interactive REPL with a specific workspace file
-./usyuo resources/sample_todo.txt
-
-# Run automated help/compilation test
+# Execute automated tests
 make test
 
-# Remove build artifacts and binaries
+# Launch REPL with default XDG workspace
+make run
+
+# Clean build artifacts
 make clean
 ```
 
@@ -209,13 +288,13 @@ make clean
 
 ## 9. REPL Command Reference
 
-| Command | Arguments | Description | Time Complexity |
+| Command | Syntax | Operational Description | Complexity |
 | :--- | :--- | :--- | :--- |
-| `list` / `ls` | None | Iterate and render all active tasks | $O(M)$ |
-| `today` | None | Retrieve tasks matching current system JDN | $O(K)$ |
-| `tag` | `<@context \| +project \| key:val>` | Query inverted index for matching tasks | $O(K)$ |
-| `add` | `<raw todo.txt string>` | Append task to arena, parse, and update indices | $O(1)$ |
-| `done` | `<task-id>` | Mark task completed and prepend completion date | $O(1)$ |
-| `save` | None | Flush active workspace to disk immediately | $O(M)$ |
-| `help` | None | Print command reference | $O(1)$ |
-| `exit` / `quit` | None | Flush modifications if dirty and terminate | $O(M)$ or $O(1)$ |
+| `list` | `list [all\|done\|pending]` | Traverses and displays tasks. Defaults to `pending`. | $O(N)$ |
+| `today` | `today` | Queries index for tasks due on or assigned to current system JDN. | $O(1 + K)$ |
+| `tag` | `tag <@context\|+project\|tag>` | Queries inverted index for exact tag match. | $O(1 + K)$ |
+| `add` | `add <task_description>` | Appends raw task to arena, parses record, updates indices. | $O(L)$ |
+| `done` | `done <task_id>` | Mutates task to completed status and prepends completion date. The closest a terminal user gets to closure. | $O(1)$ |
+| `save` | `save` | Serializes dirty in-memory state to disk via `O_TRUNC`. | $O(N)$ |
+| `help` | `help` | Outputs REPL command reference. | $O(1)$ |
+| `exit` / `quit` | `exit` | Serializes changes if dirty and terminates execution. | $O(N)$ or $O(1)$ |
