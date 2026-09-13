@@ -1,5 +1,5 @@
 
-module usyo;
+module usyuo;
 import backend::storage;
 import presentation::repl;
 import presentation::tty;

@@ -4,13 +4,13 @@
 
 The SRS File System Conventions mandate:
 > *"The system strictly adheres to the XDG Base Directory Specification for data persistence. Workspaces (individual `.txt` files) must be localized within a dedicated application directory.*  
-> *Primary path: `$XDG_DATA_HOME/c3todo/` (defaulting to `~/.local/share/c3todo/`)."*
+> *Primary path: `$XDG_DATA_HOME/usyuo/` (defaulting to `~/.local/share/usyuo/`)."*
 
 ### Resolving the Path
 1. Check if the environment variable `XDG_DATA_HOME` is set and non-empty.
-   * If yes: use `$XDG_DATA_HOME/c3todo`.
-2. Fall back to `$HOME/.local/share/c3todo`.
-3. If neither is available, fall back safely to `./c3todo`.
+   * If yes: use `$XDG_DATA_HOME/usyuo`.
+2. Fall back to `$HOME/.local/share/usyuo`.
+3. If neither is available, fall back safely to `./usyuo`.
 
 ### Directory Initialization
 Upon startup, the engine verifies whether the directory exists using `path::exists()`. If absent, it invokes recursive directory creation (`path::mkdir(path, true)` or POSIX `mkdir(path, 0755)`).
@@ -21,10 +21,10 @@ fn String resolve_xdg_directory(Allocator allocator)
     String xdg_home = env::get_var(allocator, "XDG_DATA_HOME") ?? "";
     if (xdg_home.len > 0)
     {
-        return string::format(allocator, "%s/c3todo", xdg_home);
+        return string::format(allocator, "%s/usyuo", xdg_home);
     }
     String home = env::get_var(allocator, "HOME") ?? ".";
-    return string::format(allocator, "%s/.local/share/c3todo", home);
+    return string::format(allocator, "%s/.local/share/usyuo", home);
 }
 ```
 
@@ -36,7 +36,7 @@ The SRS states:
 > *"If launched with a file path argument referencing an external file, the system must copy the target file into the XDG data directory before loading it, thereby isolating the workspace."*
 
 ### Why Workspace Isolation is Enforced:
-1. **Sandboxed Data Management**: By copying foreign `.txt` files into `$XDG_DATA_HOME/c3todo/`, the user's task ecosystem remains centrally managed in one predictable directory.
+1. **Sandboxed Data Management**: By copying foreign `.txt` files into `$XDG_DATA_HOME/usyuo/`, the user's task ecosystem remains centrally managed in one predictable directory.
 2. **Protection Against Accidental Modification**: External files in arbitrary project trees or temp directories are not modified in-place; the user works on an isolated workspace snapshot.
 
 ### Loading Flow:
@@ -47,12 +47,12 @@ CLI Argument Provided?
    |     |
    |     +--> Extract basename ("my_tasks.txt")
    |     +--> Check if already inside XDG dir
-   |     +--> If external: Copy file -> $XDG_DATA_HOME/c3todo/my_tasks.txt
-   |     +--> Mount $XDG_DATA_HOME/c3todo/my_tasks.txt
+   |     +--> If external: Copy file -> $XDG_DATA_HOME/usyuo/my_tasks.txt
+   |     +--> Mount $XDG_DATA_HOME/usyuo/my_tasks.txt
    |
    +-- NO
          |
-         +--> Mount default workspace: $XDG_DATA_HOME/c3todo/todo.txt
+         +--> Mount default workspace: $XDG_DATA_HOME/usyuo/todo.txt
 ```
 
 ---

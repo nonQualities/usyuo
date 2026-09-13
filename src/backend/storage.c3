@@ -36,24 +36,24 @@ fn bool ensure_directory_exists(String dir_path)
 }
 
 <*
- * Resolves the primary XDG workspace directory: $XDG_DATA_HOME/c3todo/
- * falling back to ~/.local/share/c3todo/, or ./c3todo_data if read-only.
+ * Resolves the primary XDG workspace directory: $XDG_DATA_HOME/usyuo/
+ * falling back to ~/.local/share/usyuo/, or ./usyuo_data if read-only.
  *>
 fn String resolve_xdg_directory(Allocator allocator)
 {
     String xdg_home = env::get_var(allocator, "XDG_DATA_HOME") ?? "";
     if (xdg_home.len > 0)
     {
-        String p = string::format(allocator, "%s/c3todo", xdg_home);
+        String p = string::format(allocator, "%s/usyuo", xdg_home);
         if (ensure_directory_exists(p)) return p;
     }
     String home = env::get_var(allocator, "HOME") ?? "";
     if (home.len > 0)
     {
-        String p = string::format(allocator, "%s/.local/share/c3todo", home);
+        String p = string::format(allocator, "%s/.local/share/usyuo", home);
         if (ensure_directory_exists(p)) return p;
     }
-    String local_fallback = "./c3todo_data";
+    String local_fallback = "./usyuo_data";
     ensure_directory_exists(local_fallback);
     return local_fallback;
 }

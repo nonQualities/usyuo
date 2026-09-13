@@ -60,7 +60,7 @@ fn void ReplState.execute_command(&self, String cmd_line)
 
     if (input == "help")
     {
-        io::printn("c3todo Commands:");
+        io::printn("usyuo Commands:");
         io::printn("  list [all|done|pending]  - Display tasks");
         io::printn("  today                    - Tasks scheduled for today");
         io::printn("  tag <@context|+proj|tag> - O(K) lookup by tag");

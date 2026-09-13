@@ -70,7 +70,7 @@ Key (int JDN)        -> Head Pointer (PostingNode*)
 
 Let $M$ = total tasks in workspace, $K$ = matching tasks ($K \ll M$).
 
-| Operation | Naive Scanner | c3todo Indexed Engine | Advantage |
+| Operation | Naive Scanner | usyuo Indexed Engine | Advantage |
 | :--- | :--- | :--- | :--- |
 | **Startup Ingestion** | $O(N)$ byte scan | $O(N)$ byte scan + index population | Identical asymptotic order |
 | **Query `today`** | $O(M)$ linear scan | $O(1)$ lookup + $O(K)$ rendering | Orders of magnitude faster |

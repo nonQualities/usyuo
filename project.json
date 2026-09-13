@@ -1,13 +1,13 @@
 {
   "langrev": "1",
-  "name": "c3todo",
+  "name": "usyuo",
   "version": "0.1.0",
   "authors": [ "User" ],
   "sources": [ "src/**" ],
   "build-dir": "build",
   "output": "build",
   "targets": {
-    "c3todo": {
+    "usyuo": {
       "type": "executable"
     }
   },

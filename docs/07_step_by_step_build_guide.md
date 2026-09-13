@@ -1,6 +1,6 @@
 # 07: Step-by-Step Implementation & Build Guide
 
-This hands-on guide walks you through building the multi-file, zero-copy `c3todo` engine step-by-step from scratch. Follow each phase to implement, test, and verify every component of the system.
+This hands-on guide walks you through building the multi-file, zero-copy `usyuo` engine step-by-step from scratch. Follow each phase to implement, test, and verify every component of the system.
 
 ---
 
@@ -36,11 +36,11 @@ Run `make build` from the project root:
 ```bash
 make build
 ```
-Verify that the binary `./c3todo` is produced without errors or warnings.
+Verify that the binary `./usyuo` is produced without errors or warnings.
 
 ### Step 1.4: Run the Help Command
 ```bash
-./c3todo --help
+./usyuo --help
 ```
 You should see the usage banner.
 
@@ -124,7 +124,7 @@ Implement `src/backend/index.c3` to provide $O(K)$ query operations using arena-
 Implement `src/backend/storage.c3` to manage workspace discovery, file isolation, and deferred file flushing.
 
 ### Implementation Checklist:
-1. `resolve_xdg_directory`: probe `$XDG_DATA_HOME/c3todo`, fallback to `~/.local/share/c3todo`, with local `./c3todo_data` fallback for sandboxed/read-only environments.
+1. `resolve_xdg_directory`: probe `$XDG_DATA_HOME/usyuo`, fallback to `~/.local/share/usyuo`, with local `./usyuo_data` fallback for sandboxed/read-only environments.
 2. `isolate_external_workspace`: copy external `.txt` files into XDG storage before mounting (FR-1).
 3. `Workspace.load_from_file`:
    * Read raw file into `arena.buffer`.
@@ -175,7 +175,7 @@ Run the full interactive lifecycle test using piped stdin:
 make build
 
 # 2. Test piped execution with queries and mutations
-printf "list\ntoday\ntag @backend\nadd (A) Test task +demo @test due:2026-09-13\ndone 1\ntoday\nexit\n" | ./c3todo resources/sample_todo.txt
+printf "list\ntoday\ntag @backend\nadd (A) Test task +demo @test due:2026-09-13\ndone 1\ntoday\nexit\n" | ./usyuo resources/sample_todo.txt
 ```
 
 ### Verification Criteria:

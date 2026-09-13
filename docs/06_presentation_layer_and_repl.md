@@ -98,7 +98,7 @@ The REPL operates as a non-terminating input loop:
 [Start REPL]
      |
      v
-[Display Prompt: "c3todo> "]
+[Display Prompt: "usyuo> "]
      |
      v
 [Read Line from stdin (io::treadline)]

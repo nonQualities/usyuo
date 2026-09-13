@@ -2,7 +2,7 @@
 
 ## 1. Introduction & Core Philosophy
 
-The `c3todo` engine is designed to be a high-performance, terminal-based, zero-copy task management system adhering strictly to the `todo.txt` format. Rather than treating task management as a trivial script, the engine treats `todo.txt` as a high-throughput, structured in-memory database with deferred disk persistence.
+The `usyuo` engine is designed to be a high-performance, terminal-based, zero-copy task management system adhering strictly to the `todo.txt` format. Rather than treating task management as a trivial script, the engine treats `todo.txt` as a high-throughput, structured in-memory database with deferred disk persistence.
 
 ### Key Architectural Tenets:
 1. **Zero-Copy Memory Model**: File ingestion loads the workspace file into a single contiguous memory arena. Parsing slices the buffer using pointer-and-length references (`String` in C3, equivalent to `char[]`), completely eliminating heap allocations for task descriptions, tags, contexts, and projects.
@@ -80,11 +80,11 @@ The project includes a `Makefile` configured to compile all files in `src/**`:
 # Build the binary
 make build
 
-# Run with default XDG workspace ($XDG_DATA_HOME/c3todo/todo.txt)
+# Run with default XDG workspace ($XDG_DATA_HOME/usyuo/todo.txt)
 make run
 
 # Run with a specific test workspace
-./c3todo resources/sample_todo.txt
+./usyuo resources/sample_todo.txt
 
 # Run automated quick test
 make test
