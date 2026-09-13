@@ -1,10 +1,25 @@
-# usyuo: Unified Sequential Year-mapped User Organizer
+# usyuo: Zero-Copy todo.txt Task Engine in C3
 
 `usyuo` is a terminal-based, zero-copy `todo.txt` task engine implemented in C3. The system executes query and mutation operations on structured text datasets without heap fragmentation, utilizing a contiguous memory arena, an integer-space temporal mapping engine, and arena-backed inverted indices.
 
 ---
 
-## 1. System Architecture & Memory Model
+## 1. Etymology & Design Philosophy
+
+The name **usyuo** derives from the classical Japanese term **usuyō** (**薄様** / うすよう), historically referring to ultra-thin, high-density gampi paper (*gampishi*). 
+
+### Historical Context
+Developed during classical Japan and widely used through the Heian period for administrative records and pocket memoranda, *usuyō* was engineered by beating wild mountain fibers to achieve minimum physical thickness and weight while retaining high tensile durability and crisp ink absorption without bleeding. Officials and scholars carried folded sheets of *usuyō* for personal ledgers, sequential task tracking, and daily dispatches because the medium imposed near-zero physical burden. The name also shares phonetic and conceptual resonance with Latin **ūsus** (*use, practice, practical application*).
+
+### Architectural Appropriation
+In `usyuo`, this philosophy governs the software architecture:
+* **Minimal Memory Mass (Zero-Copy Arena)**: Traditional software wraps plain-text data in layers of heap allocation headers, dynamic string objects, and pointer tables. `usyuo` strips away this structural bulk: the entire file is mapped into a single contiguous arena, and tasks are sliced directly from memory without secondary string allocations.
+* **Durability of the Plain-Text Medium**: Like traditional gampi parchment that endures for centuries without decomposing, `todo.txt` is an open, unadorned, human-readable standard designed for longevity over proprietary database formats.
+* **Deterministic Execution**: In accordance with the Latin root *ūsus*, the engine prioritizes functional utility: constant-time bounds checks on integer calendar days, deterministic single-pass parsing, and bounded $O(1)$ memory consumption across continuous execution loops.
+
+---
+
+## 2. System Architecture & Memory Model
 
 The architecture enforces a strict bipartite boundary between the backend memory model (`backend::*`) and the presentation layer (`presentation::*`).
 
@@ -53,7 +68,7 @@ The architecture enforces a strict bipartite boundary between the backend memory
 
 ---
 
-## 2. Temporal Mapping Engine (Julian Day Number)
+## 3. Temporal Mapping Engine (Julian Day Number)
 
 To satisfy constant-time temporal query bounds, all ISO 8601 calendar dates (`YYYY-MM-DD`) are mapped to integer Julian Day Numbers (JDN) during the lexical scan. String-based date processing is forbidden at query time.
 
@@ -81,7 +96,7 @@ $$Day = l - \left\lfloor \frac{2447j}{80} \right\rfloor, \quad l = \left\lfloor 
 
 ---
 
-## 3. Inverted & Temporal Indexing Engine
+## 4. Inverted & Temporal Indexing Engine
 
 To prevent $O(M)$ linear scans over large datasets with $M$ tasks, the system builds two in-memory indices populated during parsing.
 
@@ -105,7 +120,7 @@ Key (int JDN)        -> Head Pointer (PostingNode*)
 
 ---
 
-## 4. Storage & Persistence Protocol
+## 5. Storage & Persistence Protocol
 
 ### XDG Base Directory Compliance
 * Primary storage directory: `$XDG_DATA_HOME/usyuo/` (defaulting to `$HOME/.local/share/usyuo/`).
@@ -124,7 +139,7 @@ The file is copied into `$XDG_DATA_HOME/usyuo/external_tasks.txt` prior to parsi
 
 ---
 
-## 5. Terminal Presentation & Interactive REPL
+## 6. Terminal Presentation & Interactive REPL
 
 * **Terminal Capability Detection**: Standard output is probed using POSIX `libc::isatty(1)`. When attached to a terminal, ANSI color sequences are enabled; when piped or redirected, plain text is emitted.
 * **Single-Pass Streaming Colorizer**: The ANSI formatting engine scans the raw description slice in a single pass directly to the output stream, colorizing `@Context` in cyan, `+Project` in magenta, `due:YYYY-MM-DD` in bold yellow, priorities in bold red/yellow/cyan, and completed tasks in dim strikethrough.
@@ -132,7 +147,7 @@ The file is copied into `$XDG_DATA_HOME/usyuo/external_tasks.txt` prior to parsi
 
 ---
 
-## 6. Directory Structure
+## 7. Directory Structure
 
 ```
 todo_cli/
@@ -166,7 +181,7 @@ todo_cli/
 
 ---
 
-## 7. Compilation & Build
+## 8. Compilation & Build
 
 ### Prerequisites
 * C3 Compiler (`c3c`) version 0.8.x
@@ -192,7 +207,7 @@ make clean
 
 ---
 
-## 8. REPL Command Reference
+## 9. REPL Command Reference
 
 | Command | Arguments | Description | Time Complexity |
 | :--- | :--- | :--- | :--- |

@@ -4,6 +4,16 @@
 
 The `usyuo` engine is designed to be a high-performance, terminal-based, zero-copy task management system adhering strictly to the `todo.txt` format. Rather than treating task management as a trivial script, the engine treats `todo.txt` as a high-throughput, structured in-memory database with deferred disk persistence.
 
+### Etymology & Design Philosophy
+The name **usyuo** derives from the classical Japanese term **usuyō** (**薄様** / うすよう), historically referring to ultra-thin, high-density gampi paper (*gampishi*). 
+
+Developed during classical Japan and widely used through the Heian period for administrative records and pocket memoranda, *usuyō* was engineered by beating wild mountain fibers to achieve minimum physical thickness and weight while retaining high tensile durability and crisp ink absorption without bleeding. Officials and scholars carried folded sheets of *usuyō* for personal ledgers, sequential task tracking, and daily dispatches because the medium imposed near-zero physical burden. The name also shares phonetic and conceptual resonance with Latin **ūsus** (*use, practice, practical application*).
+
+In `usyuo`, this philosophy directly guides the software architecture:
+* **Minimal Memory Mass (Zero-Copy Arena)**: Traditional software wraps plain-text data in layers of heap allocation headers, dynamic string objects, and pointer tables. `usyuo` strips away this structural bulk: the entire file is mapped into a single contiguous arena, and tasks are sliced directly from memory without secondary string allocations.
+* **Durability of the Plain-Text Medium**: Like traditional gampi parchment that endures for centuries without decomposing, `todo.txt` is an open, unadorned, human-readable standard designed for longevity over proprietary database formats.
+* **Deterministic Execution**: In accordance with the Latin root *ūsus*, the engine prioritizes functional utility: constant-time bounds checks on integer calendar days, deterministic single-pass parsing, and bounded $O(1)$ memory consumption across continuous execution loops.
+
 ### Key Architectural Tenets:
 1. **Zero-Copy Memory Model**: File ingestion loads the workspace file into a single contiguous memory arena. Parsing slices the buffer using pointer-and-length references (`String` in C3, equivalent to `char[]`), completely eliminating heap allocations for task descriptions, tags, contexts, and projects.
 2. **Integer-Space Temporal Engine**: Date strings formatted as `YYYY-MM-DD` are converted into Julian Day Numbers (JDN) immediately during the lexical scan. Queries for "today", "this week", or custom intervals execute as bounded integer comparisons ($O(1)$ or $O(K)$), completely forbidding string comparisons at query time.
