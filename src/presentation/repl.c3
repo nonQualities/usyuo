@@ -1,4 +1,3 @@
-
 module presentation::repl;
 import backend::ast;
 import backend::arena;
@@ -60,20 +59,43 @@ fn void ReplState.execute_command(&self, String cmd_line)
 
     if (input == "help")
     {
-        io::printn("usyuo Commands:");
-        io::printn("  list [all|done|pending]  - Display tasks");
-        io::printn("  today                    - Tasks scheduled for today");
-        io::printn("  tag <@context|+proj|tag> - O(K) lookup by tag");
-        io::printn("  add <raw task text>      - Append new task to workspace");
-        io::printn("  done <id>                - Mark task as completed");
-        io::printn("  save                     - Flush changes to disk");
-        io::printn("  exit / quit              - Exit and deferred flush");
+        if (self.tty_mode)
+        {
+            io::printfn("%s╭─────────────────────────── usyuo Command Reference ─────────────────────────╮%s", tty::BORDER, tty::RESET);
+            io::printfn("%s│%s  %slist [all|done|pending]%s  Browse workspace tasks                       %s│%s", tty::BORDER, tty::RESET, tty::CYAN_ACCENT, tty::RESET, tty::BORDER, tty::RESET);
+            io::printfn("%s│%s  %stoday                  %s  Tasks scheduled or due today (O(K))          %s│%s", tty::BORDER, tty::RESET, tty::CYAN_ACCENT, tty::RESET, tty::BORDER, tty::RESET);
+            io::printfn("%s│%s  %stag <@ctx|+proj|tag>   %s  Instant inverted index tag lookup (O(K))     %s│%s", tty::BORDER, tty::RESET, tty::CYAN_ACCENT, tty::RESET, tty::BORDER, tty::RESET);
+            io::printfn("%s│%s  %sadd <raw text>         %s  Append new task to zero-copy memory runway   %s│%s", tty::BORDER, tty::RESET, tty::CYAN_ACCENT, tty::RESET, tty::BORDER, tty::RESET);
+            io::printfn("%s│%s  %sdone <id>              %s  Mark task completed with date stamp          %s│%s", tty::BORDER, tty::RESET, tty::CYAN_ACCENT, tty::RESET, tty::BORDER, tty::RESET);
+            io::printfn("%s│%s  %ssave                   %s  Flush dirty in-memory state to disk          %s│%s", tty::BORDER, tty::RESET, tty::CYAN_ACCENT, tty::RESET, tty::BORDER, tty::RESET);
+            io::printfn("%s│%s  %sexit / quit            %s  Flush modifications and exit gracefully      %s│%s", tty::BORDER, tty::RESET, tty::CYAN_ACCENT, tty::RESET, tty::BORDER, tty::RESET);
+            io::printfn("%s╰─────────────────────────────────────────────────────────────────────────────╯%s", tty::BORDER, tty::RESET);
+        }
+        else
+        {
+            io::printn("usyuo Commands:");
+            io::printn("  list [all|done|pending]  - Display tasks");
+            io::printn("  today                    - Tasks scheduled for today");
+            io::printn("  tag <@context|+proj|tag> - O(K) lookup by tag");
+            io::printn("  add <raw task text>      - Append new task to workspace");
+            io::printn("  done <id>                - Mark task as completed");
+            io::printn("  save                     - Flush changes to disk");
+            io::printn("  exit / quit              - Exit and deferred flush");
+        }
         return;
     }
 
     if (input == "today")
     {
-        io::printfn("--- Tasks for Today (JDN %d) ---", self.system_jdn);
+        if (self.tty_mode)
+        {
+            tty::render_section_header("📅", string::format(tmem, "Scheduled for Today (JDN %d)", self.system_jdn));
+        }
+        else
+        {
+            io::printfn("--- Tasks for Today (JDN %d) ---", self.system_jdn);
+        }
+
         bool found = false;
         if (try PostingNode* node = self.workspace.temporal_index.lookup(self.system_jdn))
         {
@@ -90,7 +112,18 @@ fn void ReplState.execute_command(&self, String cmd_line)
         }
         if (!found)
         {
-            io::printn("No tasks scheduled for today.");
+            if (self.tty_mode)
+            {
+                io::printfn("  %s∅ No tasks scheduled for today.%s", tty::MUTED, tty::RESET);
+            }
+            else
+            {
+                io::printn("No tasks scheduled for today.");
+            }
+        }
+        if (self.tty_mode)
+        {
+            tty::render_section_footer();
         }
         return;
     }
@@ -98,6 +131,10 @@ fn void ReplState.execute_command(&self, String cmd_line)
     if (input.starts_with("tag "))
     {
         String tag = input[4..].trim();
+        if (self.tty_mode)
+        {
+            tty::render_section_header("🏷️ ", string::format(tmem, "Tasks tagged with '%s'", tag));
+        }
         bool found = false;
         if (try PostingNode* node = self.workspace.inverted_index.lookup(tag))
         {
@@ -114,7 +151,18 @@ fn void ReplState.execute_command(&self, String cmd_line)
         }
         if (!found)
         {
-            io::printfn("No tasks found matching tag '%s'.", tag);
+            if (self.tty_mode)
+            {
+                io::printfn("  %s∅ No tasks found matching tag '%s'.%s", tty::MUTED, tag, tty::RESET);
+            }
+            else
+            {
+                io::printfn("No tasks found matching tag '%s'.", tag);
+            }
+        }
+        if (self.tty_mode)
+        {
+            tty::render_section_footer();
         }
         return;
     }
@@ -128,42 +176,18 @@ fn void ReplState.execute_command(&self, String cmd_line)
         int new_id = (int)self.workspace.tasks.len() + 1;
         Task new_task;
         parser::parse_task_line(arena_slice, new_id, &new_task);
+        self.workspace.index_task(&new_task);
         self.workspace.tasks.push(new_task);
-
-        // Index tokens directly
-        String rem = new_task.description;
-        usz pos = 0;
-        while (pos < rem.len)
-        {
-            while (pos < rem.len && (rem[pos] == ' ' || rem[pos] == '\t')) pos++;
-            if (pos >= rem.len) break;
-
-            usz token_start = pos;
-            while (pos < rem.len && rem[pos] != ' ' && rem[pos] != '\t') pos++;
-            String token = rem[token_start : pos - token_start];
-
-            if (token.starts_with("@") && token.len > 1)
-            {
-                self.workspace.inverted_index.insert(token, new_id, &self.workspace.arena);
-            }
-            else if (token.starts_with("+") && token.len > 1)
-            {
-                self.workspace.inverted_index.insert(token, new_id, &self.workspace.arena);
-            }
-            else if (token.contains(":"))
-            {
-                self.workspace.inverted_index.insert(token, new_id, &self.workspace.arena);
-            }
-        }
-
-        int eff_jdn = new_task.get_effective_jdn();
-        if (eff_jdn != 0)
-        {
-            self.workspace.temporal_index.insert(eff_jdn, new_id, &self.workspace.arena);
-        }
-
         self.workspace.dirty = true;
-        io::printfn("Added task #%d", new_id);
+
+        if (self.tty_mode)
+        {
+            io::printfn("  %s✔%s Added task %s#%d%s", tty::GREEN, tty::RESET, tty::BOLD, new_id, tty::RESET);
+        }
+        else
+        {
+            io::printfn("Added task #%d", new_id);
+        }
         return;
     }
 
@@ -185,24 +209,53 @@ fn void ReplState.execute_command(&self, String cmd_line)
                 t.raw_line = self.workspace.arena.append_string(updated);
 
                 self.workspace.dirty = true;
-                io::printfn("Completed task #%d", tid);
+                if (self.tty_mode)
+                {
+                    io::printfn("  %s✔%s Marked task %s#%d%s as completed!", tty::GREEN, tty::RESET, tty::BOLD, tid, tty::RESET);
+                }
+                else
+                {
+                    io::printfn("Completed task #%d", tid);
+                }
                 return;
             }
             else
             {
-                io::printfn("Task #%d is already completed.", tid);
+                if (self.tty_mode)
+                {
+                    io::printfn("  %s!%s Task #%d is already completed.", tty::ORANGE, tty::RESET, tid);
+                }
+                else
+                {
+                    io::printfn("Task #%d is already completed.", tid);
+                }
                 return;
             }
         }
-        io::printfn("Invalid task ID '%s'.", arg);
+        if (self.tty_mode)
+        {
+            io::printfn("  %s✘%s Invalid task ID '%s'.", tty::CORAL, tty::RESET, arg);
+        }
+        else
+        {
+            io::printfn("Invalid task ID '%s'.", arg);
+        }
         return;
     }
 
     if (input == "list" || input == "ls")
     {
+        if (self.tty_mode)
+        {
+            tty::render_section_header("📋", string::format(tmem, "Workspace Tasks (%d total)", self.workspace.tasks.len()));
+        }
         for (sz i = 0; i < self.workspace.tasks.len(); i++)
         {
             tty::render_task(&self.workspace.tasks[i], self.tty_mode);
+        }
+        if (self.tty_mode)
+        {
+            tty::render_section_footer();
         }
         return;
     }
@@ -210,9 +263,24 @@ fn void ReplState.execute_command(&self, String cmd_line)
     if (input == "save")
     {
         self.workspace.save_if_dirty();
-        io::printn("Workspace saved to disk.");
+        if (self.tty_mode)
+        {
+            io::printfn("  %s✔%s Workspace state persisted to disk.", tty::GREEN, tty::RESET);
+        }
+        else
+        {
+            io::printn("Saved workspace.");
+        }
         return;
     }
 
-    io::printfn("Unknown command '%s'. Type 'help' for available commands.", input);
+    if (self.tty_mode)
+    {
+        io::printfn("  %s✘%s Unknown command '%s'. Type %shelp%s for available commands.", 
+            tty::CORAL, tty::RESET, input, tty::CYAN_ACCENT, tty::RESET);
+    }
+    else
+    {
+        io::printfn("Unknown command '%s'. Type 'help' for available commands.", input);
+    }
 }

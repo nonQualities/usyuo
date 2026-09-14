@@ -117,6 +117,32 @@ fn String isolate_external_workspace(String external_path, String xdg_dir, Alloc
 }
 
 <*
+ * Populates inverted and temporal indices directly from parsed Task collections.
+ *>
+fn void Workspace.index_task(&self, Task* task)
+{
+    for (sz j = 0; j < task.contexts.len(); j++)
+    {
+        self.inverted_index.insert(task.contexts[j], task.id, &self.arena);
+    }
+    for (sz j = 0; j < task.projects.len(); j++)
+    {
+        self.inverted_index.insert(task.projects[j], task.id, &self.arena);
+    }
+    task.tags.@each(; k, v)
+    {
+        String full_tag = string::format(tmem, "%s:%s", k, v);
+        self.inverted_index.insert(full_tag, task.id, &self.arena);
+    };
+
+    int eff_jdn = task.get_effective_jdn();
+    if (eff_jdn != 0)
+    {
+        self.temporal_index.insert(eff_jdn, task.id, &self.arena);
+    }
+}
+
+<*
  * Loads a workspace file into the arena and parses all tasks into the AST.
  *>
 fn bool Workspace.load_from_file(&self, String file_path)
@@ -142,12 +168,12 @@ fn bool Workspace.load_from_file(&self, String file_path)
 
     if (sz_bytes + 1024 > self.arena.capacity)
     {
-        self.arena.buffer = (char*)mem::realloc(self.arena.buffer, (sz)(sz_bytes + 65536));
+        self.arena.bfr = (char*)mem::realloc(self.arena.bfr, (sz)(sz_bytes + 65536));
         self.arena.capacity = sz_bytes + 65536;
     }
 
-    f.read(self.arena.buffer[0 : sz_bytes])!!;
-    self.arena.buffer[sz_bytes] = 0;
+    f.read(self.arena.bfr[0 : sz_bytes])!!;
+    self.arena.bfr[sz_bytes] = 0;
     self.arena.used = sz_bytes;
 
     // Zero-copy line-by-line parsing
@@ -155,48 +181,17 @@ fn bool Workspace.load_from_file(&self, String file_path)
     int task_id = 1;
     for (usz i = 0; i <= sz_bytes; i++)
     {
-        if (i == sz_bytes || self.arena.buffer[i] == '\n')
+        if (i == sz_bytes || self.arena.bfr[i] == '\n')
         {
             usz len = i - line_start;
-            if (len > 0 && self.arena.buffer[line_start + len - 1] == '\r') len--;
+            if (len > 0 && self.arena.bfr[line_start + len - 1] == '\r') len--;
             if (len > 0)
             {
-                String line_slice = (String)self.arena.buffer[line_start : len];
+                String line_slice = (String)self.arena.bfr[line_start : len];
                 Task task;
                 parser::parse_task_line(line_slice, task_id++, &task);
+                self.index_task(&task);
                 self.tasks.push(task);
-
-                // Index tokens in line directly
-                String rem = task.description;
-                usz pos = 0;
-                while (pos < rem.len)
-                {
-                    while (pos < rem.len && (rem[pos] == ' ' || rem[pos] == '\t')) pos++;
-                    if (pos >= rem.len) break;
-
-                    usz token_start = pos;
-                    while (pos < rem.len && rem[pos] != ' ' && rem[pos] != '\t') pos++;
-                    String token = rem[token_start : pos - token_start];
-
-                    if (token.starts_with("@") && token.len > 1)
-                    {
-                        self.inverted_index.insert(token, task.id, &self.arena);
-                    }
-                    else if (token.starts_with("+") && token.len > 1)
-                    {
-                        self.inverted_index.insert(token, task.id, &self.arena);
-                    }
-                    else if (token.contains(":"))
-                    {
-                        self.inverted_index.insert(token, task.id, &self.arena);
-                    }
-                }
-
-                int eff_jdn = task.get_effective_jdn();
-                if (eff_jdn != 0)
-                {
-                    self.temporal_index.insert(eff_jdn, task.id, &self.arena);
-                }
             }
             line_start = i + 1;
         }

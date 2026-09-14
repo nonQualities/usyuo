@@ -46,13 +46,14 @@ fn int main(String[] args)
     bool is_tty = tty::is_stdout_tty();
     if (is_tty)
     {
-        io::printn("===============================================================================");
-        io::printn("                      **usyuo~ at your service, senpaii!!   ");
-        io::printfn("Your Active Workspace: %s", target_file);
-        io::printfn("usyuo~ works hard...loaded %d tasks", ws.tasks.len());
-        io::printn("Ohoo you do not know how to use usyuo? ask me for `help` ^^");
-		io::printn("Gambare Senpaii!! Good Luck with your work!");
-        io::printn("=================================================================================");
+        sz completed_count = 0;
+        for (sz i = 0; i < ws.tasks.len(); i++)
+        {
+            if (ws.tasks[i].completed) completed_count++;
+        }
+        sz total = ws.tasks.len();
+        sz pending = total - completed_count;
+        tty::render_banner(target_file, total, pending, completed_count);
     }
 
     repl::ReplState repl_state;
@@ -66,7 +67,7 @@ fn int main(String[] args)
     {
         @pool()
         {
-            if (is_tty) io::print("usyuo> ");
+            if (is_tty) io::printf("\n%susyuo %s❯%s ", tty::PURPLE, tty::CYAN_ACCENT, tty::RESET);
             if (try String line = io::treadline(io::stdin()))
             {
                 repl_state.execute_command(line);
@@ -80,6 +81,6 @@ fn int main(String[] args)
 
     // Deferred serialization upon graceful REPL exit (FR-5)
     ws.save_if_dirty();
-    if (is_tty) io::printn("Session ended. Workspace persisted.");
+    if (is_tty) io::printfn("\n  %s✔%s Session ended. Workspace persisted.", tty::GREEN, tty::RESET);
     return 0;
 }

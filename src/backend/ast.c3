@@ -1,9 +1,14 @@
 module backend::ast;
+import std::collections::map;
+import std::collections::list;
+
+alias StringList = List{String};
+alias TagMap = HashMap{String, String};
 
 <*
  * Represents a parsed todo.txt task node.
  * Uses zero-copy String slices referencing the contiguous workspace arena.
- * Streamlined to 48 bytes by eliminating dynamic sub-lists.
+ * Maintains parsed contexts, projects, and key:value tags for O(1) query returns.
  *>
 struct Task
 {
@@ -15,6 +20,27 @@ struct Task
     int due_jdn;            // Julian Day Number from due:YYYY-MM-DD, or 0
     String raw_line;        // Full original line slice in arena
     String description;     // Task body text slice (excluding tags/dates)
+    StringList contexts;    // Parsed @context tokens
+    StringList projects;    // Parsed +project tokens
+    TagMap tags;            // Parsed key:value tag dictionary
+}
+
+<*
+ * Frees heap collections allocated for the task.
+ *>
+fn void Task.free(&self)
+{
+    self.contexts.free();
+    self.projects.free();
+    self.tags.free();
+}
+
+<*
+ * Returns a tag value by key if present, or null.
+ *>
+fn String? Task.get_tag(&self, String key)
+{
+    return self.tags.get(key);
 }
 
 <*

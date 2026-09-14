@@ -35,7 +35,7 @@ fn void InvertedIndex.free(&self)
 
 fn void InvertedIndex.insert(&self, String tag, int task_id, MemoryArena* arena)
 {
-    PostingNode* node = (PostingNode*)arena.alloc_bytes(PostingNode::size);
+    PostingNode* node = (PostingNode*)arena.bump_alloc(PostingNode::size);
     node.task_id = task_id;
     node.next = self.map.get(tag) ?? null;
     self.map[tag] = node;
@@ -68,7 +68,7 @@ fn void TemporalIndex.free(&self)
 fn void TemporalIndex.insert(&self, int jdn, int task_id, MemoryArena* arena)
 {
     if (jdn == 0) return;
-    PostingNode* node = (PostingNode*)arena.alloc_bytes(PostingNode::size);
+    PostingNode* node = (PostingNode*)arena.bump_alloc(PostingNode::size);
     node.task_id = task_id;
     node.next = self.map.get(jdn) ?? null;
     self.map[jdn] = node;

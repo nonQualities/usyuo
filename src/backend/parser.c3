@@ -32,32 +32,33 @@ fn bool parse_iso_date(String s, int* year, int* month, int* day)
 
 <*
  * Strict linear scanner for a single line of todo.txt grammar.
- * Populates a Task struct with zero-copy slices pointing into `line`.
+ * Populates a Task struct with zero-copy slices pointing into `line`,
+ * and tokenizes contexts, projects, and key:value tags in a single pass.
  *>
 fn void parse_task_line(String line, int id, Task* task)
 {
     mem::clear(task, Task::size);
     task.id = id;
     task.raw_line = line;
+    task.contexts.init(mem);
+    task.projects.init(mem);
+    task.tags.init(mem);
 
     String rem = line.trim();
     if (rem.len == 0) return;
 
-    // 1. Completion State: starts with 'x '
     if (rem.len >= 2 && rem[0] == 'x' && rem[1] == ' ')
     {
         task.completed = true;
         rem = rem[2..].trim_left();
     }
 
-    // 2. Priority: '(A) '
     if (rem.len >= 4 && rem[0] == '(' && is_upper(rem[1]) && rem[2] == ')' && rem[3] == ' ')
     {
         task.priority = rem[1];
         rem = rem[4..].trim_left();
     }
 
-    // 3. Temporal Markers: YYYY-MM-DD
     int yr; int mo; int da;
     if (rem.len >= 10 && parse_iso_date(rem[0 : 10], &yr, &mo, &da))
     {
@@ -65,11 +66,11 @@ fn void parse_task_line(String line, int id, Task* task)
         if (rem.len == 10 || rem[10] == ' ')
         {
             rem = rem.len > 10 ? rem[11..].trim_left() : "";
-            // If completed, first date is completion date
+
             if (task.completed)
             {
                 task.completion_jdn = first_jdn;
-                // Check for secondary creation date
+
                 if (rem.len >= 10 && parse_iso_date(rem[0 : 10], &yr, &mo, &da))
                 {
                     if (rem.len == 10 || rem[10] == ' ')
@@ -88,7 +89,6 @@ fn void parse_task_line(String line, int id, Task* task)
 
     task.description = rem;
 
-    // 4. Scan description for due:YYYY-MM-DD
     usz pos = 0;
     while (pos < rem.len)
     {
@@ -99,12 +99,39 @@ fn void parse_task_line(String line, int id, Task* task)
         while (pos < rem.len && rem[pos] != ' ' && rem[pos] != '\t') pos++;
         String token = rem[token_start : pos - token_start];
 
-        if (token.starts_with("due:") && token.len >= 14)
+        if (token.starts_with("@") && token.len > 1)
         {
-            int dy; int dm; int dd;
-            if (parse_iso_date(token[4 : 10], &dy, &dm, &dd))
+            task.contexts.push(token);
+        }
+        else if (token.starts_with("+") && token.len > 1)
+        {
+            task.projects.push(token);
+        }
+        else if (token.contains(":"))
+        {
+            usz colon_idx = 0;
+            for (usz ci = 0; ci < token.len; ci++)
             {
-                task.due_jdn = ast::date_to_jdn(dy, dm, dd);
+                if (token[ci] == ':')
+                {
+                    colon_idx = ci;
+                    break;
+                }
+            }
+            if (colon_idx > 0 && colon_idx + 1 < token.len)
+            {
+                String key = token[0 : colon_idx];
+                String val = token[colon_idx + 1 ..];
+                task.tags[key] = val;
+
+                if (key == "due")
+                {
+                    int dy; int dm; int dd;
+                    if (parse_iso_date(val, &dy, &dm, &dd))
+                    {
+                        task.due_jdn = ast::date_to_jdn(dy, dm, dd);
+                    }
+                }
             }
         }
     }
