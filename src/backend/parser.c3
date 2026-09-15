@@ -50,7 +50,8 @@ fn void parse_task_line(String line, int id, Task* task)
         task.priority = rem[1];
         rem = rem[4..].trim_left();
     }
-
+	
+	// if if if if...aaaaa there has to be a better way arghh..
     int yr; int mo; int da;
     if (rem.len >= 10 && parse_iso_date(rem[0 : 10], &yr, &mo, &da))
     {

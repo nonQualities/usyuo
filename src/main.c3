@@ -6,7 +6,6 @@ import presentation::tty;
 import std::io;
 import libc;
 
-// Global workspace pointer for deferred serialization on SIGINT
 storage::Workspace* g_active_workspace = null;
 
 fn void handle_sigint(CInt sig)
@@ -31,8 +30,27 @@ fn int main(String[] args)
     {
         if (args[1] == "--help" || args[1] == "-h")
         {
-            io::printn("Usage: usyuo [workspace_file.txt]");
-            io::printn("High-performance, zero-copy todo.txt CLI engine in C3.");
+            io::printn("Usage: usyuo [OPTIONS] [WORKSPACE_FILE.txt]");
+            io::printn("High-performance, zero-copy todo.txt CLI engine in C3.\n");
+            io::printn("Options:");
+            io::printn("  -h, --help     Display this help reference and exit");
+            io::printn("  -v, --version  Display version information and exit\n");
+            io::printn("Interactive Commands:");
+            io::printn("  list           Browse workspace tasks");
+            io::printn("  search <term>  Search tasks by substring");
+            io::printn("  sort [date]    Sort tasks chronologically and re-index");
+            io::printn("  today          Query tasks scheduled or due today");
+            io::printn("  tag <tag>      Query tasks by tag (@context, +project, key:val)");
+            io::printn("  add <text>     Append new task to zero-copy memory runway");
+            io::printn("  done <id>      Mark task as completed");
+            io::printn("  save           Flush in-memory workspace state to disk");
+            io::printn("  help           Display interactive command reference");
+            io::printn("  exit / quit    Flush dirty state and exit gracefully");
+            return 0;
+        }
+        if (args[1] == "--version" || args[1] == "-v")
+        {
+            io::printn("usyuo v0.8.9 (薄様 · Zero-Copy todo.txt Engine)");
             return 0;
         }
         target_file = storage::isolate_external_workspace(args[1], xdg_dir, mem);

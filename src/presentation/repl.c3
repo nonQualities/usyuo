@@ -53,26 +53,123 @@ fn void ReplState.execute_command(&self, String cmd_line)
     {
         if (self.tty_mode)
         {
-            io::printfn("%s╭─────────────────────────── usyuo Command Reference ─────────────────────────╮%s", tty::BORDER, tty::RESET);
-            io::printfn("%s│%s  %slist [all|done|pending]%s  Browse workspace tasks                       %s│%s", tty::BORDER, tty::RESET, tty::CYAN_ACCENT, tty::RESET, tty::BORDER, tty::RESET);
-            io::printfn("%s│%s  %stoday                  %s  Tasks scheduled or due today (O(K))          %s│%s", tty::BORDER, tty::RESET, tty::CYAN_ACCENT, tty::RESET, tty::BORDER, tty::RESET);
-            io::printfn("%s│%s  %stag <@ctx|+proj|tag>   %s  Instant inverted index tag lookup (O(K))     %s│%s", tty::BORDER, tty::RESET, tty::CYAN_ACCENT, tty::RESET, tty::BORDER, tty::RESET);
-            io::printfn("%s│%s  %sadd <raw text>         %s  Append new task to zero-copy memory runway   %s│%s", tty::BORDER, tty::RESET, tty::CYAN_ACCENT, tty::RESET, tty::BORDER, tty::RESET);
-            io::printfn("%s│%s  %sdone <id>              %s  Mark task completed with date stamp          %s│%s", tty::BORDER, tty::RESET, tty::CYAN_ACCENT, tty::RESET, tty::BORDER, tty::RESET);
-            io::printfn("%s│%s  %ssave                   %s  Flush dirty in-memory state to disk          %s│%s", tty::BORDER, tty::RESET, tty::CYAN_ACCENT, tty::RESET, tty::BORDER, tty::RESET);
-            io::printfn("%s│%s  %sexit / quit            %s  Flush modifications and exit gracefully      %s│%s", tty::BORDER, tty::RESET, tty::CYAN_ACCENT, tty::RESET, tty::BORDER, tty::RESET);
-            io::printfn("%s╰─────────────────────────────────────────────────────────────────────────────╯%s", tty::BORDER, tty::RESET);
+            tty::render_section_header("📖", "Command Reference");
+            io::printfn("  %s%-24s%s  Browse workspace tasks", tty::CYAN_ACCENT, "list [all|done|pending]", tty::RESET);
+            io::printfn("  %s%-24s%s  Case-insensitive task search", tty::CYAN_ACCENT, "search <term>", tty::RESET);
+            io::printfn("  %s%-24s%s  Sort tasks by date and re-index", tty::CYAN_ACCENT, "sort | sort due", tty::RESET);
+            io::printfn("  %s%-24s%s  Tasks scheduled or due today", tty::CYAN_ACCENT, "today", tty::RESET);
+            io::printfn("  %s%-24s%s  Instant inverted index tag lookup", tty::CYAN_ACCENT, "tag <@ctx|+proj|tag>", tty::RESET);
+            io::printfn("  %s%-24s%s  Append new task to zero-copy memory runway", tty::CYAN_ACCENT, "add <raw text>", tty::RESET);
+            io::printfn("  %s%-24s%s  Mark task completed with date stamp", tty::CYAN_ACCENT, "done <id>", tty::RESET);
+            io::printfn("  %s%-24s%s  Flush dirty in-memory state to disk", tty::CYAN_ACCENT, "save", tty::RESET);
+            io::printfn("  %s%-24s%s  Flush modifications and exit gracefully", tty::CYAN_ACCENT, "exit / quit", tty::RESET);
+            tty::render_section_footer();
         }
         else
         {
             io::printn("usyuo Commands:");
             io::printn("  list [all|done|pending]  - Display tasks");
+            io::printn("  search <term>            - Search tasks by substring");
+            io::printn("  sort [date]              - Sort tasks by date and re-index");
             io::printn("  today                    - Tasks scheduled for today");
             io::printn("  tag <@context|+proj|tag> - O(K) lookup by tag");
             io::printn("  add <raw task text>      - Append new task to workspace");
             io::printn("  done <id>                - Mark task as completed");
             io::printn("  save                     - Flush changes to disk");
             io::printn("  exit / quit              - Exit and deferred flush");
+        }
+        return;
+    }
+
+    if (input.starts_with("search ") || input.starts_with("find "))
+    {
+        usz prefix_len = input.starts_with("search ") ? 7 : 5;
+        String query = input[prefix_len..].trim();
+        if (query.len == 0) return;
+
+        String query_lower = query.to_lower_tcopy();
+        sz match_count = 0;
+
+        for (sz i = 0; i < self.workspace.tasks.len(); i++)
+        {
+            Task* t = &self.workspace.tasks[i];
+            if (t.description.to_lower_tcopy().contains(query_lower) ||
+                t.raw_line.to_lower_tcopy().contains(query_lower))
+            {
+                match_count++;
+            }
+        }
+
+        if (self.tty_mode)
+        {
+            if (match_count > 0)
+            {
+                tty::render_section_header("🔍", string::format(tmem, "Search Results for '%s' (%d match%s)", 
+                    query, match_count, match_count == 1 ? "" : "es"));
+            }
+            else
+            {
+                tty::render_section_header("🔍", string::format(tmem, "Search Results for '%s'", query));
+            }
+        }
+        else
+        {
+            io::printfn("--- Search Results for '%s' (%d matches) ---", query, match_count);
+        }
+
+        if (match_count == 0)
+        {
+            if (self.tty_mode)
+            {
+                io::printfn("  %s∅ No tasks found matching '%s'.%s", tty::MUTED, query, tty::RESET);
+            }
+            else
+            {
+                io::printfn("No tasks found matching '%s'.", query);
+            }
+        }
+        else
+        {
+            for (sz i = 0; i < self.workspace.tasks.len(); i++)
+            {
+                Task* t = &self.workspace.tasks[i];
+                if (t.description.to_lower_tcopy().contains(query_lower) ||
+                    t.raw_line.to_lower_tcopy().contains(query_lower))
+                {
+                    tty::render_task(t, self.tty_mode);
+                }
+            }
+        }
+
+        if (self.tty_mode)
+        {
+            tty::render_section_footer();
+        }
+        return;
+    }
+
+    if (input == "sort" || input == "sort date" || input == "sort by date" || input == "sort due")
+    {
+        self.workspace.sort_by_date();
+
+        if (self.tty_mode)
+        {
+            tty::render_section_header("📅", string::format(tmem, "Tasks Sorted by Date (%d total)", self.workspace.tasks.len()));
+            for (sz i = 0; i < self.workspace.tasks.len(); i++)
+            {
+                tty::render_task(&self.workspace.tasks[i], self.tty_mode);
+            }
+            tty::render_section_footer();
+            io::printfn("  %s✔%s %d tasks sorted by date and re-indexed.", tty::GREEN, tty::RESET, self.workspace.tasks.len());
+        }
+        else
+        {
+            io::printfn("--- Tasks Sorted by Date (%d total) ---", self.workspace.tasks.len());
+            for (sz i = 0; i < self.workspace.tasks.len(); i++)
+            {
+                tty::render_task(&self.workspace.tasks[i], self.tty_mode);
+            }
+            io::printfn("Sorted %d tasks by date.", self.workspace.tasks.len());
         }
         return;
     }
@@ -235,7 +332,7 @@ fn void ReplState.execute_command(&self, String cmd_line)
         return;
     }
 
-    if (input == "list" || input == "ls")
+    if (input == "list" || input == "ls" || input == "ls all" || input == "list all")
     {
         if (self.tty_mode)
         {
@@ -251,6 +348,31 @@ fn void ReplState.execute_command(&self, String cmd_line)
         }
         return;
     }
+
+	if(input == "list done" || input == "ls done"){
+
+		if(self.tty_mode) tty::render_section_header("📋", string::format(tmem, "Workspace Completed Tasks (%d total)", self.workspace.tasks.len()));
+        for(sz i = 0; i < self.workspace.tasks.len(); i++){
+			if(self.workspace.tasks[i].completed) tty::render_task(&self.workspace.tasks[i], self.tty_mode);
+		}
+
+		if (self.tty_mode)
+        {
+            tty::render_section_footer();
+        }
+        return;
+	}
+
+	if(input == "list pending" || input == "ls pending"){
+
+		if(self.tty_mode) tty::render_section_header("📋", string::format(tmem, "Workspace Pending Tasks (%d total)", self.workspace.tasks.len()));
+
+		for(sz i = 0; i <self.workspace.tasks.len(); ++i){
+
+		if(!self.workspace.tasks[i].completed) tty::render_task(&self.workspace.tasks[i], self.tty_mode);
+		}
+		return;
+	}
 
     if (input == "save")
     {

@@ -8,9 +8,11 @@ which is an interpreter for todo.txt syntax, a REPL and a persistant DB in disgu
 
 1. WHAT IS THIS?
 ----------------
-Modern software likes to bundle a 300MB headless browser just to remind you to
-buy milk. usyuo takes the opposite route: a zero-copy, terminal-based task
-engine written in C3 adhering strictly to the todo.txt standard.
+modern software has been often degraded to slop. for even the simple things, one needs
+criminal amount of memory, and things are just slow in general, in pursuit of clean code 
+we have lost all the performance one needs. this is not an unreabable codebase, but with
+my limited knowledge I have tried to make it as fast as possible. Even more optimizations 
+are in order.
 
 It treats your tasks as an in-memory, structured database:
 - Contiguous virtual memory arena (no secondary heap allocations).
@@ -21,6 +23,8 @@ It treats your tasks as an in-memory, structured database:
 
 2. WHAT DOES "USYUO" MEAN?
 --------------------------
+I generated the name thruogh a random name generator, I liked it and later appropriated
+it to some meaningful entity. Here is an attempt to induce meaning into usyuo.
 Derived from classical Japanese usuyo (薄様 / うすよう): an ultra-thin, high-density
 paper beaten from wild mountain gampi fibers during the Heian court era. It had
 virtually zero physical mass, extreme tensile strength, and crisp ink retention.
@@ -28,7 +32,7 @@ Officials carried it for pocket ledgers and sequential task memoranda.
 
 It also nods to Latin "usus" (functional utility, practical execution).
 
-In software terms:
+How the inducted meaning can be oriented to software:
 - Paper-thin overhead: The entire file lives in a single contiguous arena. Slices
   point directly into raw bytes. Literally no strings attached--just an 8-byte
   pointer with commitment issues and an 8-byte length.
@@ -62,7 +66,8 @@ usyuo strictly forbids string date processing at query time. During lexical
 parsing, ISO 8601 dates (YYYY-MM-DD) are immediately projected into integer
 Julian Day Numbers (JDN) using the Fliegel-van Flandern algorithm.
 
-The payoff:
+The payoff, and I have not tested if these complexities are true
+but my algos seem correct and these makes sense to me:
 - Checking if a task is due today? A single integer comparison (O(1)).
 - Checking if a task is in a date range? Two integer bounds checks (O(1)).
 - Formatting back to YYYY-MM-DD on save? Constant-time Richards-Hatcher inversion.
@@ -95,6 +100,8 @@ querying a tag or date is O(1) hash lookup + O(K) traversal of matching tasks.
 7. COMMAND REFERENCE
 --------------------
   list [all|done|pending]  List tasks (defaults to pending)
+  search <term>            Case-insensitive search across task descriptions & tags
+  sort [date]              Sort tasks chronologically (deadlines first) and re-index
   today                    Tasks scheduled or due today (O(K))
   tag <@ctx|+proj|key:val> Instant tag lookup via inverted index (O(K))
   add <raw text>           Append task to arena and update indices (O(L))
@@ -108,6 +115,7 @@ querying a tag or date is O(1) hash lookup + O(K) traversal of matching tasks.
 --------------
 Prerequisites: C3 compiler (c3c 0.8.x), make, libc.
 
-  make build               Compile executable to ./usyuo
-  make test                Run sanity checks and verify help banner
-  ./usyuo [file.txt]       Launch interactive REPL
+  make build               Compile executable to ./build/usyuo
+  make test                Run sanity checks and verify test suite
+  make run                 Build and launch interactive REPL
+  ./build/usyuo [file.txt] Launch interactive REPL with custom file

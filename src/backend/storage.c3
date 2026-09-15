@@ -131,6 +131,106 @@ fn void Workspace.index_task(&self, Task* task)
 }
 
 
+fn int compare_tasks_by_date(Task* a, Task* b)
+{
+    // 1. Incomplete tasks come before completed tasks
+    if (a.completed != b.completed)
+    {
+        return a.completed ? 1 : -1;
+    }
+
+    // 2. Tasks with explicit due dates come first, sorted earliest deadline first
+    if (a.due_jdn != 0 && b.due_jdn != 0)
+    {
+        if (a.due_jdn != b.due_jdn) return a.due_jdn < b.due_jdn ? -1 : 1;
+    }
+    else if (a.due_jdn != 0 && b.due_jdn == 0)
+    {
+        return -1;
+    }
+    else if (a.due_jdn == 0 && b.due_jdn != 0)
+    {
+        return 1;
+    }
+
+    // 3. If neither has a due date, sort by creation date
+    if (a.creation_jdn != 0 && b.creation_jdn != 0)
+    {
+        if (a.creation_jdn != b.creation_jdn) return a.creation_jdn < b.creation_jdn ? -1 : 1;
+    }
+    else if (a.creation_jdn != 0 && b.creation_jdn == 0)
+    {
+        return -1;
+    }
+    else if (a.creation_jdn == 0 && b.creation_jdn != 0)
+    {
+        return 1;
+    }
+
+    // 4. Sort by priority ('A' < 'B' < ... < unprioritized)
+    char pri_a = a.priority != 0 ? a.priority : 127;
+    char pri_b = b.priority != 0 ? b.priority : 127;
+    if (pri_a != pri_b)
+    {
+        return pri_a < pri_b ? -1 : 1;
+    }
+
+    if (a.id != b.id) return a.id < b.id ? -1 : 1;
+    return 0;
+}
+
+
+fn void quicksort_tasks(Task* arr, sz low, sz high)
+{
+    if (low >= high) return;
+    sz i = low;
+    sz j = high;
+    sz mid = low + (high - low) / 2;
+    Task pivot = arr[mid];
+
+    while (i <= j)
+    {
+        while (compare_tasks_by_date(&arr[i], &pivot) < 0) i++;
+        while (compare_tasks_by_date(&arr[j], &pivot) > 0) j--;
+        if (i <= j)
+        {
+            Task tmp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = tmp;
+            i++;
+            j--;
+        }
+    }
+
+    if (low < j) quicksort_tasks(arr, low, j);
+    if (i < high) quicksort_tasks(arr, i, high);
+}
+
+
+fn void Workspace.rebuild_indexes(&self)
+{
+    self.inverted_index.map.clear();
+    self.temporal_index.map.clear();
+    for (sz i = 0; i < self.tasks.len(); i++)
+    {
+        self.tasks[i].id = (int)i + 1;
+        self.index_task(&self.tasks[i]);
+    }
+    self.dirty = true;
+}
+
+
+fn void Workspace.sort_by_date(&self)
+{
+    sz n = (sz)self.tasks.len();
+    if (n > 1)
+    {
+        quicksort_tasks(self.tasks.entries, 0, n - 1);
+    }
+    self.rebuild_indexes();
+}
+
+
 fn bool Workspace.load_from_file(&self, String file_path)
 {
     self.dirty = false;
@@ -151,10 +251,11 @@ fn bool Workspace.load_from_file(&self, String file_path)
     File f = file::open(file_path, "rb")!!;
     defer (void)f.close();
 
-    if (sz_bytes + 1024 > self.arena.capacity)
+    usz needed_cap = sz_bytes * 5 + 16777216;
+    if (needed_cap > self.arena.capacity)
     {
-        self.arena.bfr = (char*)mem::realloc(self.arena.bfr, (sz)(sz_bytes + 65536));
-        self.arena.capacity = sz_bytes + 65536;
+        self.arena.bfr = (char*)mem::realloc(self.arena.bfr, (sz)needed_cap);
+        self.arena.capacity = needed_cap;
     }
 
     f.read(self.arena.bfr[0 : sz_bytes])!!;
