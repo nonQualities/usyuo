@@ -4,20 +4,13 @@ import backend::arena;
 import std::collections::map;
 import std::io;
 
-<*
- * Singly-linked posting list node for indexed query results.
- * Bump-allocated in the workspace memory arena for zero heap fragmentation.
- *>
 struct PostingNode
 {
     int task_id;
     PostingNode* next;
 }
 
-<*
- * Inverted Tag Index: Maps string slices (@Context, +Project, key:value)
- * to posting lists of task IDs.
- *>
+
 struct InvertedIndex
 {
     HashMap{String, PostingNode*} map;
@@ -46,10 +39,7 @@ fn PostingNode*? InvertedIndex.lookup(&self, String tag)
     return self.map.get(tag);
 }
 
-<*
- * Temporal Index: Maps Julian Day Numbers directly to posting lists of task IDs.
- * Provides O(K) retrieval for "today" and specific JDNs.
- *>
+
 struct TemporalIndex
 {
     HashMap{int, PostingNode*} map;

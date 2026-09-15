@@ -8,9 +8,7 @@ import presentation::tty;
 import std::io;
 import std::time::datetime;
 
-<*
- * Encapsulates runtime state of the interactive REPL.
- *>
+
 struct ReplState
 {
     storage::Workspace* workspace;
@@ -19,9 +17,7 @@ struct ReplState
     int system_jdn;
 }
 
-<*
- * Computes today's system Julian Day Number.
- *>
+
 fn int get_current_system_jdn()
 {
     DateTime dt = datetime::now();
@@ -29,9 +25,7 @@ fn int get_current_system_jdn()
     return ast::date_to_jdn((int)local.year, (int)local.month + 1, (int)local.day);
 }
 
-<*
- * Parses an integer task ID from a string slice.
- *>
+
 fn int parse_int(String s)
 {
     int res = 0;
@@ -43,9 +37,7 @@ fn int parse_int(String s)
     return res;
 }
 
-<*
- * Dispatches a parsed command line to query or mutation handlers.
- *>
+
 fn void ReplState.execute_command(&self, String cmd_line)
 {
     String input = cmd_line.trim();

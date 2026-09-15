@@ -35,7 +35,6 @@ fn int main(String[] args)
             io::printn("High-performance, zero-copy todo.txt CLI engine in C3.");
             return 0;
         }
-        // Isolate external workspace into XDG directory (FR-1)
         target_file = storage::isolate_external_workspace(args[1], xdg_dir, mem);
     }
 
@@ -62,7 +61,6 @@ fn int main(String[] args)
     repl_state.tty_mode = is_tty;
     repl_state.system_jdn = repl::get_current_system_jdn();
 
-    // REPL loop with @pool() to guarantee O(1) steady-state memory consumption
     while (repl_state.running)
     {
         @pool()
@@ -79,7 +77,6 @@ fn int main(String[] args)
         };
     }
 
-    // Deferred serialization upon graceful REPL exit (FR-5)
     ws.save_if_dirty();
     if (is_tty) io::printfn("\n  %s✔%s Session ended. Workspace persisted.", tty::GREEN, tty::RESET);
     return 0;

@@ -40,7 +40,7 @@ fn void render_banner(String workspace_path, sz total, sz pending, sz completed)
     io::printfn("%s│%s  %s📊 Tasks     :%s %s%d loaded%s (%s%d pending%s · %s%d completed%s)   %s│%s", 
         BORDER, RESET, MUTED, RESET, GREEN, total, RESET, ORANGE, pending, RESET, MUTED, completed, RESET, BORDER, RESET);
     io::printfn("%s│%s  %s💡 Quick Tip :%s Type %shelp%s for commands                          %s│%s", 
-        BORDER, RESET, MUTED, RESET, CYAN_ACCENT, RESET, CYAN_ACCENT, RESET, BORDER, RESET);
+        BORDER, RESET, MUTED, RESET, CYAN_ACCENT, RESET, CYAN_ACCENT, RESET);
     io::printfn("%s│%s  %s🌸 Gambare Senpaii! Good luck with your work!%s                      %s│%s", 
         BORDER, RESET, "\x1b[38;5;219m", RESET, BORDER, RESET);
     io::printfn("%s╰─────────────────────────────────────────────────────────────────────────────╯%s", BORDER, RESET);

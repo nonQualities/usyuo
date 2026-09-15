@@ -12,9 +12,6 @@ import libc;
 
 alias TaskArray = List{Task};
 
-<*
- * Represents active workspace state, memory, and deferred persistence.
- *>
 struct Workspace
 {
     String workspace_path;
@@ -26,9 +23,7 @@ struct Workspace
     bool dirty;
 }
 
-<*
- * Ensures the target directory exists, creating parent directories as needed.
- *>
+
 fn bool ensure_directory_exists(String dir_path)
 {
     if (path::exists((Path)dir_path)) return true;
@@ -58,15 +53,12 @@ fn String resolve_xdg_directory(Allocator allocator)
     return local_fallback;
 }
 
-<*
- * Copies an external file into the XDG directory to isolate the workspace (FR-1).
- *>
+
 fn String isolate_external_workspace(String external_path, String xdg_dir, Allocator allocator)
 {
     if (!path::exists((Path)external_path)) return external_path;
     if (!ensure_directory_exists(xdg_dir)) return external_path;
 
-    // Extract filename from external path
     String filename = external_path;
     usz last_slash = 0;
     bool found_slash = false;
@@ -85,10 +77,8 @@ fn String isolate_external_workspace(String external_path, String xdg_dir, Alloc
 
     String isolated_path = string::format(allocator, "%s/%s", xdg_dir, filename);
 
-    // If source and destination are identical, already isolated
     if (external_path == isolated_path) return isolated_path;
 
-    // Read external source file
     if (try File src_f = file::open(external_path, "rb"))
     {
         defer (void)src_f.close();
@@ -116,9 +106,7 @@ fn String isolate_external_workspace(String external_path, String xdg_dir, Alloc
     return external_path;
 }
 
-<*
- * Populates inverted and temporal indices directly from parsed Task collections.
- *>
+
 fn void Workspace.index_task(&self, Task* task)
 {
     for (sz j = 0; j < task.contexts.len(); j++)
@@ -142,9 +130,7 @@ fn void Workspace.index_task(&self, Task* task)
     }
 }
 
-<*
- * Loads a workspace file into the arena and parses all tasks into the AST.
- *>
+
 fn bool Workspace.load_from_file(&self, String file_path)
 {
     self.dirty = false;
@@ -162,7 +148,6 @@ fn bool Workspace.load_from_file(&self, String file_path)
     usz sz_bytes = (usz)(file::get_size(file_path) ?? 0);
     if (sz_bytes == 0) return true;
 
-    // Read entire file contents directly into the contiguous arena
     File f = file::open(file_path, "rb")!!;
     defer (void)f.close();
 
@@ -176,7 +161,7 @@ fn bool Workspace.load_from_file(&self, String file_path)
     self.arena.bfr[sz_bytes] = 0;
     self.arena.used = sz_bytes;
 
-    // Zero-copy line-by-line parsing
+ 
     usz line_start = 0;
     int task_id = 1;
     for (usz i = 0; i <= sz_bytes; i++)
@@ -199,10 +184,7 @@ fn bool Workspace.load_from_file(&self, String file_path)
     return true;
 }
 
-<*
- * Deferred serialization protocol (FR-5):
- * Flushes active in-memory tasks to disk with O_TRUNC in a single stream.
- *>
+
 fn void Workspace.save_if_dirty(&self)
 {
     if (!self.dirty) return;

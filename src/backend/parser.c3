@@ -6,10 +6,6 @@ fn bool is_digit(char c) => c >= '0' && c <= '9';
 
 fn bool is_upper(char c) => c >= 'A' && c <= 'Z';
 
-<*
- * Parses an ISO 8601 date string (YYYY-MM-DD) into integer year, month, and day.
- * Returns true if valid, false otherwise.
- *>
 fn bool parse_iso_date(String s, int* year, int* month, int* day)
 {
     if (s.len != 10) return false;
@@ -30,11 +26,7 @@ fn bool parse_iso_date(String s, int* year, int* month, int* day)
     return true;
 }
 
-<*
- * Strict linear scanner for a single line of todo.txt grammar.
- * Populates a Task struct with zero-copy slices pointing into `line`,
- * and tokenizes contexts, projects, and key:value tags in a single pass.
- *>
+
 fn void parse_task_line(String line, int id, Task* task)
 {
     mem::clear(task, Task::size);

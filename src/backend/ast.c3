@@ -5,29 +5,23 @@ import std::collections::list;
 alias StringList = List{String};
 alias TagMap = HashMap{String, String};
 
-<*
- * Represents a parsed todo.txt task node.
- * Uses zero-copy String slices referencing the contiguous workspace arena.
- * Maintains parsed contexts, projects, and key:value tags for O(1) query returns.
- *>
+
 struct Task
 {
-    int id;                 // 1-based operational index
-    bool completed;         // true if prefixed with 'x '
-    char priority;          // 'A'..'Z' or 0 if unprioritized
-    int completion_jdn;     // Julian Day Number of completion, or 0
-    int creation_jdn;       // Julian Day Number of creation, or 0
-    int due_jdn;            // Julian Day Number from due:YYYY-MM-DD, or 0
-    String raw_line;        // Full original line slice in arena
-    String description;     // Task body text slice (excluding tags/dates)
-    StringList contexts;    // Parsed @context tokens
-    StringList projects;    // Parsed +project tokens
-    TagMap tags;            // Parsed key:value tag dictionary
+    int id;                 
+    bool completed;         
+    char priority;          
+    int completion_jdn;     
+    int creation_jdn;       
+    int due_jdn;            
+    String raw_line;   //raw data     
+    String description;     
+    StringList contexts;    
+    StringList projects;    
+    TagMap tags;            
 }
 
-<*
- * Frees heap collections allocated for the task.
- *>
+
 fn void Task.free(&self)
 {
     self.contexts.free();
@@ -35,19 +29,13 @@ fn void Task.free(&self)
     self.tags.free();
 }
 
-<*
- * Returns a tag value by key if present, or null.
- *>
+
 fn String? Task.get_tag(&self, String key)
 {
     return self.tags.get(key);
 }
 
-<*
- * Converts Gregorian calendar date (year, month, day) to Julian Day Number (JDN).
- * Strictly maps ISO 8601 strings to integer space to guarantee O(1)
- * comparison during temporal queries.
- *>
+//Fliegel-Van Flandern Algorithm
 fn int date_to_jdn(int year, int month, int day)
 {
     int a = (14 - month) / 12;
@@ -56,10 +44,7 @@ fn int date_to_jdn(int year, int month, int day)
     return day + (153 * m + 2) / 5 + 365 * y + y / 4 - y / 100 + y / 400 - 32045;
 }
 
-<*
- * Inverts Julian Day Number back to Gregorian calendar (year, month, day)
- * using the Richards-Hatcher algorithm in constant time.
- *>
+//Richards-Hatcher Algorithm
 fn void jdn_to_date(int jdn, int* year, int* month, int* day)
 {
     int l = jdn + 68569;
@@ -74,10 +59,7 @@ fn void jdn_to_date(int jdn, int* year, int* month, int* day)
     *year = 100 * (n - 49) + i + l;
 }
 
-<*
- * Returns the effective JDN for temporal queries on a task.
- * Adheres to Option A: priority on due_jdn, fallback to creation_jdn.
- *>
+
 fn int Task.get_effective_jdn(Task* self)
 {
     if (self.due_jdn != 0) return self.due_jdn;

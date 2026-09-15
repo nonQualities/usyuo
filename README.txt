@@ -1,7 +1,10 @@
 ================================================================================
-usyuo - Zero-Copy, Paper-Thin todo.txt Task Engine in C3
+                                    usyuo - 
+                          An overengineered todo app
+which is an interpreter for todo.txt syntax, a REPL and a persistant DB in disguise.
 ================================================================================
-"usyuo~ at your service, senpaii! Minimal memory mass. No strings attached."
+
+
 
 1. WHAT IS THIS?
 ----------------
