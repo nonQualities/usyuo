@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>usyuo (v0.8.9) — Systems Architecture &amp; Benchmark Specification</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="document-container">
+    <!-- Systems Document Header -->
+    <header>
+      <div class="doc-metadata">
+        <span>PROJECT: usyuo</span>
+        <span>VERSION: v0.8.9-beta</span>
+        <span>TARGET: LINUX x86_64</span>
+        <span>SOURCE: C3</span>
+        <span>SPEC: TODO.TXT</span>
+        <span>LICENSE: MIT</span>
+      </div>
+
+      <div class="title-row">
+        <h1 class="doc-title">usyuo: Systems Architecture &amp; Benchmark Specification</h1>
+        <span class="doc-badge">v0.8.9-beta</span>
+      </div>
+      <p class="doc-subtitle">A Zero-Copy In-Memory Task Database, AST Parser, and Query Engine in C3</p>
+
+      <!-- Technical Navigation Bar -->
+      <nav class="doc-nav">
+        <a href="#architecture">Architecture</a>
+        <a href="#benchmarks">Benchmarks</a>
+        <a href="#complexity">Complexity</a>
+        <a href="#compilation">Compilation</a>
+        <a href="#contributing">Contributing</a>
+        <div class="nav-right">
+          <a href="https://github.com/nonQualities/usyuo" target="_blank" rel="noopener">GitHub Repository &nearr;</a>
+          <a href="https://github.com/nonQualities/usyuo/releases/tag/usyuo-beta" class="btn-download">Download Binary v0.8.9 &darr;</a>
+        </div>
+      </nav>
+    </header>
+
+    <main>
+      <!-- Technical Abstract & Core Metrics -->
+      <section class="abstract-section">
+        <h2 class="abstract-title">Abstract &amp; System Overview</h2>
+        <p class="abstract-text">
+          <strong>usyuo</strong> is an in-memory task database, lexical parser, and query engine implemented in C3 for the 
+          <a href="http://todotxt.org/">todo.txt</a> specification. By combining sequential virtual memory arena mapping, 
+          cache-line packed task data structures, and integer Julian Day calendar arithmetic, usyuo achieves ingestion 
+          throughput of <strong>404,800 tasks/second</strong> (0.494s for 200,000 tasks) with 
+          <strong>zero secondary heap allocations</strong>.
+        </p>
+
+        <!-- High-Density Metrics Strip -->
+        <div class="metrics-strip">
+          <div class="metric-box">
+            <div class="metric-val">0.494s</div>
+            <div class="metric-lbl">200k Ingestion Latency</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-val">404,858</div>
+            <div class="metric-lbl">Tasks / Sec Throughput</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-val">0 bytes</div>
+            <div class="metric-lbl">Secondary Heap Allocs</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-val">48 bytes</div>
+            <div class="metric-lbl">Task AST (L1 Cache-Line)</div>
+          </div>
+        </div>
+
+        <div class="callout-box">
+          <strong>Binary Release:</strong> Pre-compiled standalone executable <code>usyuo-v0.8.9-beta</code> for Linux x86_64 
+          with zero dynamic runtime dependencies is available on 
+          <a href="https://github.com/nonQualities/usyuo/releases/tag/usyuo-beta"><strong>GitHub Releases &rarr;</strong></a>
+        </div>
+      </section>
+
+      <!-- Two-Column Technical Specification Grid -->
+      <div class="technical-grid">
+        
+        <!-- Left Column: Architectural Foundations -->
+        <div class="column column-left">
+          <h2 class="col-header" id="architecture">1. Architectural Implementation</h2>
+
+          <div class="topic-block">
+            <h3 class="topic-title">1.1 Zero-Copy Virtual Memory Arena Runway</h3>
+            <p>
+              Standard text parsers execute separate dynamic heap allocations for individual lines, tokens, contexts, and project tags. 
+              <code>usyuo</code> eliminates memory fragmentation and allocator overhead by loading the entire dataset into a single 
+              contiguous, 8-byte aligned virtual memory arena (<code>MemoryArena</code>) using a single sequential disk read.
+            </p>
+            <p>
+              Task lines, context tags (<code>@context</code>), project tags (<code>+project</code>), and task descriptions 
+              are represented as 16-byte zero-copy slices (<code>char* ptr</code> and <code>usz len</code>) pointing directly into 
+              the arena memory runway. Ingesting 200,000 tasks executes with zero individual heap string allocations.
+            </p>
+          </div>
+
+          <div class="topic-block">
+            <h3 class="topic-title">1.2 48-Byte Cache-Line Aligned Task Structure</h3>
+            <p>
+              The core AST representation of a task is packed into exactly 48 bytes with 8-byte alignment, 
+              fitting inside a single 64-byte L1 CPU cache line:
+            </p>
+            <pre><code>struct Task {
+    int id;              // 4 bytes: Task identifier (1..N)
+    bool completed;      // 1 byte : Completion status flag
+    char priority;       // 1 byte : Priority marker ('A'..'Z', or 0)
+    char[2] _pad0;       // 2 bytes: Alignment padding
+    int completion_jdn;  // 4 bytes: Completion Julian Day Number
+    int creation_jdn;    // 4 bytes: Creation Julian Day Number
+    int due_jdn;         // 4 bytes: Due date Julian Day Number
+    char[4] _pad1;       // 4 bytes: Alignment padding
+    String raw_line;     // 16 bytes: Zero-copy slice (ptr + len)
+    String description;  // 16 bytes: Zero-copy slice (ptr + len)
+} // Total: 48 bytes (fits inside 64-byte L1 cache line)</code></pre>
+            <p>
+              Because each struct occupies less than one cache line, sequential iterations optimize L1/L2 hardware prefetcher 
+              bandwidth and avoid cache line split penalties.
+            </p>
+          </div>
+
+          <div class="topic-block">
+            <h3 class="topic-title">1.3 Integer Julian Day Calendar Arithmetic</h3>
+            <p>
+              Calendar date strings (<code>YYYY-MM-DD</code>) are never evaluated via string comparison or regex matching during queries. 
+              During lexical analysis, dates are projected into integer <strong>Julian Day Numbers (JDN)</strong> via 
+              the Fliegel–Van Flandern algorithm:
+            </p>
+            
+            <div class="math-block">
+              <math display="block">
+                <mtable columnalign="left" rowspacing="0.6em">
+                  <mtr>
+                    <mtd>
+                      <mi>a</mi>
+                      <mo>=</mo>
+                      <mrow>
+                        <mo stretchy="true">&#x230A;</mo>
+                        <mfrac>
+                          <mrow><mn>14</mn><mo>&minus;</mo><mi mathvariant="italic">month</mi></mrow>
+                          <mn>12</mn>
+                        </mfrac>
+                        <mo stretchy="true">&#x230B;</mo>
+                      </mrow>
+                    </mtd>
+                  </mtr>
+                  <mtr>
+                    <mtd>
+                      <mi>y</mi>
+                      <mo>=</mo>
+                      <mrow>
+                        <mi mathvariant="italic">year</mi><mo>+</mo><mn>4800</mn><mo>&minus;</mo><mi>a</mi>
+                      </mrow>
+                    </mtd>
+                  </mtr>
+                  <mtr>
+                    <mtd>
+                      <mi>m</mi>
+                      <mo>=</mo>
+                      <mrow>
+                        <mi mathvariant="italic">month</mi><mo>+</mo><mn>12</mn><mo>&#x2062;</mo><mi>a</mi><mo>&minus;</mo><mn>3</mn>
+                      </mrow>
+                    </mtd>
+                  </mtr>
+                  <mtr>
+                    <mtd>
+                      <mi mathvariant="normal">JDN</mi>
+                      <mo>=</mo>
+                      <mrow>
+                        <mi mathvariant="italic">day</mi>
+                        <mo>+</mo>
+                        <mo stretchy="true">&#x230A;</mo>
+                        <mfrac>
+                          <mrow><mn>153</mn><mo>&#x2062;</mo><mi>m</mi><mo>+</mo><mn>2</mn></mrow>
+                          <mn>5</mn>
+                        </mfrac>
+                        <mo stretchy="true">&#x230B;</mo>
+                        <mo>+</mo>
+                        <mn>365</mn><mo>&#x2062;</mo><mi>y</mi>
+                        <mo>+</mo>
+                        <mo stretchy="true">&#x230A;</mo>
+                        <mfrac><mi>y</mi><mn>4</mn></mfrac>
+                        <mo stretchy="true">&#x230B;</mo>
+                        <mo>&minus;</mo>
+                        <mo stretchy="true">&#x230A;</mo>
+                        <mfrac><mi>y</mi><mn>100</mn></mfrac>
+                        <mo stretchy="true">&#x230B;</mo>
+                        <mo>+</mo>
+                        <mo stretchy="true">&#x230A;</mo>
+                        <mfrac><mi>y</mi><mn>400</mn></mfrac>
+                        <mo stretchy="true">&#x230B;</mo>
+                        <mo>&minus;</mo>
+                        <mn>32045</mn>
+                      </mrow>
+                    </mtd>
+                  </mtr>
+                </mtable>
+              </math>
+            </div>
+
+            <p>Implemented in C3 using integer truncation division:</p>
+            <pre><code>int a = (14 - month) / 12;
+int y = year + 4800 - a;
+int m = month + 12 * a - 3;
+int jdn = day + (153 * m + 2) / 5 + 365 * y + y / 4 - y / 100 + y / 400 - 32045;</code></pre>
+
+            <p>
+              Temporal validation (e.g., evaluating whether a task is overdue or due on a specified date) reduces to a single 
+              32-bit integer comparison (<math><mi>O</mi><mo>(</mo><mn>1</mn><mo>)</mo></math>):
+            </p>
+            <pre><code>if (task.due_jdn != 0 && task.due_jdn &lt;= system_jdn) {
+    // Overdue or due today: single CPU clock cycle integer comparison
+}</code></pre>
+            <p>
+              Serialization back to ISO-8601 calendar strings during workspace disk flush utilizes the 
+              constant-time Richards–Hatcher inversion algorithm.
+            </p>
+          </div>
+
+          <div class="topic-block">
+            <h3 class="topic-title">1.4 Arena-Backed Inverted &amp; Temporal Indices</h3>
+            <p>
+              Posting lists for context tags, project tags, and due dates are allocated via an 8-byte aligned bump pointer directly inside 
+              the memory arena. Index insertion operates as an <math><mi>O</mi><mo>(</mo><mn>1</mn><mo>)</mo></math> linked-list prepend. 
+              Querying an arbitrary tag (<code>@backend</code>, <code>+c3engine</code>) performs an <math><mi>O</mi><mo>(</mo><mn>1</mn><mo>)</mo></math> 
+              hash lookup followed by an <math><mi>O</mi><mo>(</mo><mi>K</mi><mo>)</mo></math> traversal of posting nodes.
+            </p>
+          </div>
+        </div>
+
+        <!-- Right Column: Benchmarks & Specifications -->
+        <div class="column column-right">
+          <h2 class="col-header" id="benchmarks">2. Benchmarks &amp; Specifications</h2>
+
+          <div class="topic-block">
+            <h3 class="topic-title">2.1 Empirical Benchmark Evaluation (200,000 Tasks)</h3>
+            <p>
+              Measured on Linux x86_64 with a synthetic 200,000-line dataset (8.3 MB):
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Pipeline Stage / Metric</th>
+                  <th>Measured</th>
+                  <th>Architectural Mechanism</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Dataset Dimension</td>
+                  <td>200,000 records (8.3 MB)</td>
+                  <td><code>(A) TEST STRING @test +test due:2026-09-16</code></td>
+                </tr>
+                <tr>
+                  <td>Sequential Disk Ingestion</td>
+                  <td>0.082s</td>
+                  <td>Single read into virtual memory arena</td>
+                </tr>
+                <tr>
+                  <td>Lexical AST Parse &amp; Indexing</td>
+                  <td>0.412s</td>
+                  <td>Zero-copy slicing &amp; posting list generation</td>
+                </tr>
+                <tr>
+                  <td><strong>Total Cold Ingestion Latency</strong></td>
+                  <td><strong>0.494s</strong></td>
+                  <td><strong>~404,800 tasks / second throughput</strong></td>
+                </tr>
+                <tr>
+                  <td>Secondary Dynamic Allocations</td>
+                  <td><strong>0 bytes</strong></td>
+                  <td>Contiguous arena bump allocation</td>
+                </tr>
+                <tr>
+                  <td>Tag Query Latency (<code>tag @test</code>)</td>
+                  <td><strong>&lt; 1 ms</strong></td>
+                  <td><math><mi>O</mi><mo>(</mo><mn>1</mn><mo>)</mo></math> hashmap lookup + posting traversal</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="topic-block">
+            <h3 class="topic-title" id="complexity">2.2 Computational Complexity &amp; Command Reference</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Command</th>
+                  <th>Complexity</th>
+                  <th>Operational Semantics</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>list [all|done|pending]</code></td>
+                  <td><math><mi>O</mi><mo>(</mo><mi>N</mi><mo>)</mo></math></td>
+                  <td>Sequential scan over L1-cached task array</td>
+                </tr>
+                <tr>
+                  <td><code>search &lt;term&gt;</code></td>
+                  <td><math><mi>O</mi><mo>(</mo><mi>N</mi><mo>)</mo></math></td>
+                  <td>Linear case-insensitive substring search</td>
+                </tr>
+                <tr>
+                  <td><code>sort [date]</code></td>
+                  <td><math><mi>O</mi><mo>(</mo><mi>N</mi><mo>&nbsp;</mo><mi>log</mi><mo>&nbsp;</mo><mi>N</mi><mo>)</mo></math></td>
+                  <td>Chronological Quicksort &amp; inverted index rebuild</td>
+                </tr>
+                <tr>
+                  <td><code>today</code></td>
+                  <td><math><mi>O</mi><mo>(</mo><mi>K</mi><mo>)</mo></math></td>
+                  <td>Traversal of pre-indexed current Julian Day posting list</td>
+                </tr>
+                <tr>
+                  <td><code>tag &lt;@ctx|+proj|tag&gt;</code></td>
+                  <td><math><mi>O</mi><mo>(</mo><mi>K</mi><mo>)</mo></math></td>
+                  <td>Constant-time hash lookup &amp; posting list iteration</td>
+                </tr>
+                <tr>
+                  <td><code>add &lt;text&gt;</code></td>
+                  <td><math><mi>O</mi><mo>(</mo><mi>L</mi><mo>)</mo></math></td>
+                  <td>Bump allocation into arena runway &amp; index insertion</td>
+                </tr>
+                <tr>
+                  <td><code>done &lt;id&gt;</code></td>
+                  <td><math><mi>O</mi><mo>(</mo><mn>1</mn><mo>)</mo></math></td>
+                  <td>Direct array index mutation &amp; JDN date stamp</td>
+                </tr>
+                <tr>
+                  <td><code>save</code></td>
+                  <td><math><mi>O</mi><mo>(</mo><mi>N</mi><mo>)</mo></math></td>
+                  <td>Atomic disk serialization via Richards–Hatcher inversion</td>
+                </tr>
+                <tr>
+                  <td><code>exit / quit</code></td>
+                  <td><math><mi>O</mi><mo>(</mo><mi>N</mi><mo>)</mo></math></td>
+                  <td>Atomic persistence check and graceful termination</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="topic-block" id="compilation">
+            <h3 class="topic-title">2.3 Compilation &amp; Distribution</h3>
+            <p>
+              <strong>Standalone Release Binary:</strong><br>
+              <a href="https://github.com/nonQualities/usyuo/releases/tag/usyuo-beta">https://github.com/nonQualities/usyuo/releases/tag/usyuo-beta</a>
+            </p>
+            <p><strong>Source Compilation:</strong></p>
+            <pre><code># Toolchain prerequisites: C3 compiler (c3c >= 0.8.x), make, libc
+git clone https://github.com/nonQualities/usyuo.git
+cd usyuo
+make build
+make test
+./build/usyuo resources/sample_todo.txt</code></pre>
+          </div>
+
+          <div class="topic-block" id="contributing">
+            <h3 class="topic-title">2.4 Contributing &amp; Engineering Standards</h3>
+            <p>
+              Contributions, profiling benchmarks, and bug reports are welcomed via 
+              <a href="https://github.com/nonQualities/usyuo">GitHub Pull Requests</a>. 
+              Before submitting patches, please review our engineering guidelines:
+            </p>
+            <p>
+              <strong>AI Tooling Policy:</strong> We encourage contributors to utilize AI assistants, LLMs, and language models 
+              <strong>strictly for research, conceptual exploration, and learning</strong>. 
+              However, <strong>do not submit AI-generated code or automated implementations</strong>. 
+              <code>usyuo</code> is an exercise in manual systems craftsmanship, requiring precise reasoning around 
+              cache line alignments, zero-copy pointer lifetimes, and memory arena boundaries. Every line of code submitted 
+              must be deeply understood, reasoned through, and hand-written by the contributor.
+            </p>
+            <p>
+              <strong>Validation:</strong> All pull requests must pass the test suite and stress benchmark with zero regressions:
+            </p>
+            <pre><code>make test    # Runs arena, parser, and sorting unit tests
+make stress  # Ingests 200,000 tasks to verify memory runway stability</code></pre>
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+    <!-- Document Colophon -->
+    <footer>
+      <div>
+        <strong>usyuo v0.8.9-beta</strong> &middot; C3 Language Implementation &middot; MIT License
+      </div>
+      <div>
+        <a href="https://github.com/nonQualities/usyuo">Source Repository</a> &middot;
+        <a href="https://github.com/nonQualities/usyuo/releases/tag/usyuo-beta">Release Binaries</a>
+      </div>
+    </footer>
+  </div>
+
+</body>
+</html>

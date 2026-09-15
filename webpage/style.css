@@ -1,0 +1,358 @@
+/* Technical Specification Layout: Strict Light Theme, Monospace, Two-Column, Monochrome Black Accents */
+:root {
+  color-scheme: light;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Segoe UI Mono", "Liberation Mono", Menlo, Monaco, Consolas, monospace;
+  
+  --bg: #ffffff;
+  --bg-subtle: #f8fafc;
+  --bg-card: #f4f4f5;
+  --text: #09090b;
+  --text-muted: #52525b;
+  --border: #e4e4e7;
+  --border-strong: #71717a;
+  --accent: #000000;
+  --accent-hover: #3f3f46;
+  --code-bg: #f8fafc;
+  --tag-bg: #f4f4f5;
+  --tag-text: #09090b;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-mono);
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-size: 13.5px;
+  line-height: 1.6;
+  letter-spacing: -0.01em;
+  padding: 2rem 1.5rem 4rem;
+}
+
+.document-container {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+/* Links */
+a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+a:hover {
+  color: var(--accent-hover);
+}
+
+/* Header & Metadata */
+header {
+  margin-bottom: 1.75rem;
+}
+
+.doc-metadata {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1.25rem 0 0.35rem;
+}
+
+.doc-title {
+  font-size: 1.85rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #000000;
+}
+
+.doc-badge {
+  font-size: 0.8rem;
+  color: var(--tag-text);
+  background-color: var(--tag-bg);
+  border: 1px solid var(--border-strong);
+  padding: 0.2rem 0.6rem;
+  border-radius: 3px;
+  font-weight: 700;
+}
+
+.doc-subtitle {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  margin-bottom: 0.85rem;
+}
+
+/* Navigation Bar */
+.doc-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.6rem 0;
+  border-top: 2px solid #000000;
+  border-bottom: 2px solid #000000;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.doc-nav a {
+  color: var(--text);
+  text-decoration: none;
+}
+.doc-nav a:hover {
+  text-decoration: underline;
+  color: var(--accent-hover);
+}
+
+.doc-nav .nav-right {
+  margin-left: auto;
+  display: flex;
+  gap: 1.25rem;
+  align-items: center;
+}
+
+.btn-download {
+  background-color: #000000;
+  color: #ffffff !important;
+  padding: 0.3rem 0.85rem;
+  border-radius: 3px;
+  text-decoration: none !important;
+  font-weight: 700;
+}
+.btn-download:hover {
+  background-color: var(--accent-hover);
+}
+
+/* Abstract & Technical Lead */
+.abstract-section {
+  margin: 1.5rem 0 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.abstract-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #000000;
+  margin-bottom: 0.6rem;
+  letter-spacing: -0.01em;
+}
+
+.abstract-text {
+  font-size: 0.95rem;
+  color: var(--text);
+  max-width: 980px;
+  margin-bottom: 1.25rem;
+}
+
+/* High-Density Metrics Strip */
+.metrics-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin: 1.25rem 0;
+}
+
+.metric-box {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  padding: 0.85rem 1rem;
+  border-radius: 4px;
+}
+
+.metric-val {
+  font-size: 1.45rem;
+  font-weight: 900;
+  color: #000000;
+  line-height: 1.1;
+}
+
+.metric-lbl {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 0.35rem;
+  font-weight: 600;
+}
+
+.callout-box {
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-left: 3px solid #000000;
+  border-radius: 4px;
+  padding: 0.85rem 1.15rem;
+  margin: 1.25rem 0 0.5rem;
+}
+
+/* Two-Column Technical Layout */
+.technical-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2.5rem;
+  align-items: start;
+}
+
+.column {
+  min-width: 0;
+}
+
+.column-left {
+  padding-right: 2.5rem;
+  border-right: 1px solid var(--border);
+}
+
+/* Section Headings */
+.col-header {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #000000;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding-bottom: 0.45rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 2px solid #000000;
+}
+
+.topic-block {
+  margin-bottom: 1.75rem;
+}
+
+.topic-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #000000;
+  margin-bottom: 0.4rem;
+}
+
+p {
+  margin-bottom: 0.75rem;
+  color: var(--text);
+}
+
+/* Code & Pre */
+pre, code {
+  font-size: 0.85rem;
+}
+
+code {
+  background-color: var(--code-bg);
+  border: 1px solid var(--border);
+  padding: 0.15em 0.35em;
+  border-radius: 3px;
+  color: #000000;
+}
+
+pre {
+  background-color: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.85rem 1rem;
+  overflow-x: auto;
+  line-height: 1.5;
+  margin: 0.75rem 0 1rem;
+}
+
+pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+}
+
+/* Math */
+math {
+  font-size: 1.05em;
+}
+
+.math-block {
+  background-color: var(--code-bg);
+  border: 1px solid var(--border);
+  border-left: 3px solid #000000;
+  border-radius: 4px;
+  padding: 0.85rem 1rem;
+  margin: 0.75rem 0 1rem;
+  overflow-x: auto;
+}
+
+/* Tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0 1.5rem;
+  font-size: 0.82rem;
+}
+
+th, td {
+  border: 1px solid var(--border);
+  padding: 0.5rem 0.65rem;
+  text-align: left;
+}
+
+th {
+  background-color: var(--bg-card);
+  font-weight: 800;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #000000;
+}
+
+tbody tr:hover {
+  background-color: var(--bg-subtle);
+}
+
+/* Footer */
+footer {
+  margin-top: 3.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* Responsive: 1 Column on Small Screens */
+@media (max-width: 900px) {
+  .technical-grid {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+  .column-left {
+    padding-right: 0;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 2rem;
+  }
+  .metrics-strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .doc-title {
+    font-size: 1.5rem;
+  }
+  .doc-nav .nav-right {
+    margin-left: 0;
+  }
+}
