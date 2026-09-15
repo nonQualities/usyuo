@@ -11,14 +11,21 @@ which is an interpreter for todo.txt syntax, a REPL and a persistant DB in disgu
 modern software has been often degraded to slop. for even the simple things, one needs
 criminal amount of memory, and things are just slow in general, in pursuit of clean code 
 we have lost all the performance one needs. this is not an unreabable codebase, but with
-my limited knowledge I have tried to make it as fast as possible. Even more optimizations 
-are in order.
+my limited knowledge I have tried to make it as fast as possible. Even more optimizations are in order.
 
 It treats your tasks as an in-memory, structured database:
 - Contiguous virtual memory arena (no secondary heap allocations).
 - Integer-space calendar engine (Julian Day Numbers).
 - Arena-backed inverted and temporal indices (O(1) insert, O(K) lookup).
 - Deferred persistence (O_TRUNC atomic disk flushes).
+
+|---------------------------------------------------------------------|
+|=====================================================================|
+|                BUT HOW FAST IT ACTUALLY IS:                         |
+| usyuo isolates, parses, indexes, and validates all 200,000 tasks    | 
+| in ~0.49 seconds (~400,000 tasks/second).                           |
+|=====================================================================|
+|----------------------------------------------------------------------|
 
 
 2. WHAT DOES "USYUO" MEAN?
